@@ -72,8 +72,13 @@
                                     {{ $sale->payment_method }}
                                 </span>
                             </td>
-                            <td class="text-end fw-bold text-dark">
-                                Rp {{ number_format($sale->grand_total, 0, ',', '.') }}
+                            <td class="text-end">
+                                <div class="fw-bold text-dark">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</div>
+                                @if($sale->shipping_cost > 0)
+                                    <div class="small text-muted fw-normal" style="font-size: 0.75rem;">
+                                        <i class="bi bi-truck text-primary me-1"></i>Ongkir: Rp {{ number_format($sale->shipping_cost, 0, ',', '.') }}
+                                    </div>
+                                @endif
                             </td>
                             <td class="text-center">
                                 @if($sale->status === 'completed')

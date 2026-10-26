@@ -81,27 +81,33 @@
 
     <!-- Summary KPI Cards (Hanya di Layar Web) -->
     <div class="row g-3 mb-4 d-print-none">
-        <div class="col-6 col-md-3">
-            <div class="card card-custom p-3 bg-white">
+        <div class="col-6 col-md">
+            <div class="card card-custom p-3 bg-white h-100">
                 <small class="text-muted d-block">Total Transaksi</small>
                 <h4 class="fw-bold text-dark mb-0">{{ $summary['total_transactions'] }} Nota</h4>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card card-custom p-3 bg-white">
+        <div class="col-6 col-md">
+            <div class="card card-custom p-3 bg-white h-100">
                 <small class="text-muted d-block">Subtotal Penjualan</small>
                 <h4 class="fw-bold text-dark mb-0">Rp {{ number_format($summary['total_subtotal'], 0, ',', '.') }}</h4>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card card-custom p-3 bg-white">
+        <div class="col-6 col-md">
+            <div class="card card-custom p-3 bg-white h-100">
                 <small class="text-muted d-block">Potongan Diskon</small>
                 <h4 class="fw-bold text-danger mb-0">-Rp {{ number_format($summary['total_discount'], 0, ',', '.') }}</h4>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card card-custom p-3 bg-white border-primary">
-                <small class="text-primary fw-semibold d-block">Grand Total Omset</small>
+        <div class="col-6 col-md">
+            <div class="card card-custom p-3 bg-white h-100 border-info">
+                <small class="text-info fw-semibold d-block">Total Ongkir (Terpisah)</small>
+                <h4 class="fw-bold text-info mb-0">+Rp {{ number_format($summary['total_shipping'] ?? 0, 0, ',', '.') }}</h4>
+            </div>
+        </div>
+        <div class="col-6 col-md">
+            <div class="card card-custom p-3 bg-white border-primary h-100">
+                <small class="text-primary fw-semibold d-block">Grand Total Kas Masuk</small>
                 <h4 class="fw-bold text-primary mb-0">Rp {{ number_format($summary['total_grand_total'], 0, ',', '.') }}</h4>
             </div>
         </div>
@@ -112,10 +118,11 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 25%;">Total Transaksi</th>
-                    <th style="width: 25%;">Subtotal Penjualan</th>
-                    <th style="width: 25%;">Potongan Diskon</th>
-                    <th style="width: 25%;">Grand Total Omset</th>
+                    <th style="width: 20%;">Total Transaksi</th>
+                    <th style="width: 20%;">Subtotal Produk</th>
+                    <th style="width: 20%;">Potongan Diskon</th>
+                    <th style="width: 20%;">Total Ongkir</th>
+                    <th style="width: 20%;">Grand Total</th>
                 </tr>
             </thead>
             <tbody>
@@ -123,6 +130,7 @@
                     <td class="fw-bold">{{ $summary['total_transactions'] }} Nota</td>
                     <td class="fw-bold">Rp {{ number_format($summary['total_subtotal'], 0, ',', '.') }}</td>
                     <td class="fw-bold text-danger">-Rp {{ number_format($summary['total_discount'], 0, ',', '.') }}</td>
+                    <td class="fw-bold text-info">+Rp {{ number_format($summary['total_shipping'] ?? 0, 0, ',', '.') }}</td>
                     <td class="fw-bold">Rp {{ number_format($summary['total_grand_total'], 0, ',', '.') }}</td>
                 </tr>
             </tbody>
@@ -136,14 +144,15 @@
                 <thead class="table-light small">
                     <tr>
                         <th style="width: 5%;" class="text-center">#</th>
-                        <th style="width: 15%;">No. Invoice</th>
-                        <th style="width: 13%;">Tanggal Transaksi</th>
-                        <th style="width: 13%;">Kasir</th>
-                        <th style="width: 14%;">Pelanggan</th>
-                        <th style="width: 10%;" class="text-center">Metode Bayar</th>
-                        <th style="width: 13%;" class="text-end">Subtotal</th>
+                        <th style="width: 14%;">No. Invoice</th>
+                        <th style="width: 12%;">Tanggal Transaksi</th>
+                        <th style="width: 12%;">Kasir</th>
+                        <th style="width: 13%;">Pelanggan</th>
+                        <th style="width: 9%;" class="text-center">Metode</th>
+                        <th style="width: 11%;" class="text-end">Subtotal</th>
                         <th style="width: 7%;" class="text-end">Diskon</th>
-                        <th style="width: 13%;" class="text-end">Grand Total</th>
+                        <th style="width: 8%;" class="text-end">Ongkir</th>
+                        <th style="width: 11%;" class="text-end">Grand Total</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -161,11 +170,12 @@
                             <td class="text-center"><span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ $s->payment_method }}</span></td>
                             <td class="text-end">Rp {{ number_format($s->subtotal, 0, ',', '.') }}</td>
                             <td class="text-end text-muted">{{ $s->discount_amount > 0 ? '-Rp ' . number_format($s->discount_amount, 0, ',', '.') : '-' }}</td>
+                            <td class="text-end text-muted">{{ $s->shipping_cost > 0 ? '+Rp ' . number_format($s->shipping_cost, 0, ',', '.') : '-' }}</td>
                             <td class="text-end fw-bold text-dark">Rp {{ number_format($s->grand_total, 0, ',', '.') }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center py-5 text-muted">Tidak ada transaksi penjualan pada rentang periode ini.</td>
+                            <td colspan="10" class="text-center py-5 text-muted">Tidak ada transaksi penjualan pada rentang periode ini.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -174,6 +184,7 @@
                         <td colspan="6" class="text-end">TOTAL KESELURUHAN ({{ $summary['total_transactions'] }} Transaksi):</td>
                         <td class="text-end">Rp {{ number_format($summary['total_subtotal'], 0, ',', '.') }}</td>
                         <td class="text-end">-Rp {{ number_format($summary['total_discount'], 0, ',', '.') }}</td>
+                        <td class="text-end text-info">+Rp {{ number_format($summary['total_shipping'] ?? 0, 0, ',', '.') }}</td>
                         <td class="text-end text-primary">Rp {{ number_format($summary['total_grand_total'], 0, ',', '.') }}</td>
                     </tr>
                 </tfoot>

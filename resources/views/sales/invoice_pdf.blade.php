@@ -94,6 +94,12 @@
                 <td class="text-right">+Rp {{ number_format($sale->tax_amount, 0, ',', '.') }}</td>
             </tr>
         @endif
+        @if($sale->shipping_cost > 0)
+            <tr>
+                <td>Ongkos Kirim:</td>
+                <td class="text-right">+Rp {{ number_format($sale->shipping_cost, 0, ',', '.') }}</td>
+            </tr>
+        @endif
         <tr class="total-highlight">
             <td>Grand Total:</td>
             <td class="text-right">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</td>

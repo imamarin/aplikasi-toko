@@ -80,6 +80,7 @@ class PosController extends Controller
             'discount_type' => ['nullable', 'string', 'in:fixed,percentage'],
             'discount_value' => ['nullable', 'numeric', 'min:0'],
             'tax_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'shipping_cost' => ['nullable'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
             'payment_method' => ['required', 'string', 'in:cash,transfer,qris,debit,credit'],
             'notes' => ['nullable', 'string'],

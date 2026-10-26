@@ -96,9 +96,15 @@
                         <td class="text-end text-danger">- Rp {{ number_format($profitLoss['total_discounts'], 0, ',', '.') }}</td>
                     </tr>
                     <tr class="fw-bold">
-                        <td class="ps-4">Total Pendapatan Bersih Penjualan</td>
+                        <td class="ps-4">Total Pendapatan Bersih Penjualan Produk</td>
                         <td class="text-end text-dark">Rp {{ number_format($profitLoss['total_revenue'], 0, ',', '.') }}</td>
                     </tr>
+                    @if(($profitLoss['total_shipping'] ?? 0) > 0)
+                    <tr class="text-muted small">
+                        <td class="ps-4 fst-italic"><i class="bi bi-truck me-1"></i> Total Ongkos Kirim Terdata (Terpisah dari Penjualan Produk)</td>
+                        <td class="text-end fst-italic">Rp {{ number_format($profitLoss['total_shipping'], 0, ',', '.') }}</td>
+                    </tr>
+                    @endif
 
                     <!-- HPP -->
                     <tr class="table-light fw-bold">

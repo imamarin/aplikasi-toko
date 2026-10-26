@@ -441,6 +441,23 @@
                             </div>
                         </div>
 
+                        <!-- Ongkos Kirim (Opsional) -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small fw-semibold mb-0 text-dark">
+                                    <i class="bi bi-truck text-primary me-1"></i> Ongkos Kirim (Opsional)
+                                </label>
+                                <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 text-secondary" style="font-size: 0.75rem;" onclick="setZeroShipping()">Tanpa Ongkir</button>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted fw-semibold">Rp</span>
+                                <input type="text" inputmode="numeric" id="inputShippingCost" class="form-control fw-bold text-end input-rupiah" placeholder="0" value="0" oninput="calcChange()">
+                            </div>
+                            <div class="form-text small text-muted" style="font-size: 0.72rem;">
+                                *Ongkir dicatat terpisah & tidak dihitung sebagai omset penjualan barang.
+                            </div>
+                        </div>
+
                         <!-- Uang Pembayaran -->
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Uang Dibayarkan (Rp) <span class="text-danger">*</span></label>
@@ -470,8 +487,25 @@
                         <div class="p-3 bg-light rounded-4 border h-100 d-flex flex-column justify-content-between">
                             <div>
                                 <h6 class="fw-bold mb-3 text-secondary">Ringkasan Tagihan</h6>
+                                <div class="d-flex justify-content-between mb-1 small">
+                                    <span class="text-muted">Total Belanja Barang:</span>
+                                    <span class="fw-semibold text-dark" id="modalProductNetSales">Rp 0</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-1 small text-danger d-none" id="modalDiscountNotaRow">
+                                    <span>Diskon Nota:</span>
+                                    <span class="fw-semibold" id="modalDiscountNotaText">-Rp 0</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-1 small d-none" id="modalTaxRow">
+                                    <span class="text-muted">PPN:</span>
+                                    <span class="fw-semibold text-dark" id="modalTaxText">+Rp 0</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2 small text-primary d-none" id="modalShippingRow">
+                                    <span class="fw-semibold"><i class="bi bi-truck me-1"></i>Ongkos Kirim:</span>
+                                    <span class="fw-bold" id="modalShippingText">+Rp 0</span>
+                                </div>
+                                <hr class="my-2">
                                 <div class="d-flex justify-content-between mb-2">
-                                    <span class="text-muted small">Total Tagihan:</span>
+                                    <span class="fw-bold text-dark">Total Tagihan (Grand Total):</span>
                                     <span class="fw-bold fs-5 text-dark" id="modalGrandTotal">Rp 0</span>
                                 </div>
                                 <div class="d-flex justify-content-between mb-3">
@@ -1338,10 +1372,62 @@
 
     // Checkout Flow
     function openCheckoutModal() {
-        document.getElementById('modalGrandTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(currentGrandTotal);
-        document.getElementById('inputPaidAmount').value = formatRupiahString(currentGrandTotal);
-        document.getElementById('modalPaidTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(currentGrandTotal);
+        const rawDisc = (document.getElementById('inputDiscount').value || '').toString().replace(/\./g, '');
+        const discVal = parseFloat(rawDisc) || 0;
+        const discType = document.getElementById('selectDiscountType').value;
+        
+        let grossSubtotal = 0;
+        cart.forEach(item => {
+            grossSubtotal += (item.subtotal !== undefined && item.is_custom_subtotal)
+                ? item.subtotal
+                : ((item.price * item.qty) - (item.discount || 0));
+        });
+        
+        let discountAmount = 0;
+        if (discType === 'percentage') {
+            discountAmount = (grossSubtotal * discVal) / 100;
+        } else {
+            discountAmount = discVal;
+        }
+        if (discountAmount > grossSubtotal) discountAmount = grossSubtotal;
+        
+        const afterDiscount = grossSubtotal - discountAmount;
+        const taxPercentage = parseFloat(document.getElementById('inputTax').value) || 0;
+        const taxAmount = (afterDiscount * taxPercentage) / 100;
+
+        document.getElementById('modalProductNetSales').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(grossSubtotal);
+        
+        const discRow = document.getElementById('modalDiscountNotaRow');
+        if (discountAmount > 0) {
+            discRow.classList.remove('d-none');
+            document.getElementById('modalDiscountNotaText').innerText = '-Rp ' + new Intl.NumberFormat('id-ID').format(discountAmount);
+        } else {
+            discRow.classList.add('d-none');
+        }
+
+        const taxRow = document.getElementById('modalTaxRow');
+        if (taxAmount > 0) {
+            taxRow.classList.remove('d-none');
+            document.getElementById('modalTaxText').innerText = '+Rp ' + new Intl.NumberFormat('id-ID').format(taxAmount);
+        } else {
+            taxRow.classList.add('d-none');
+        }
+
+        const shipInput = document.getElementById('inputShippingCost');
+        if (!shipInput.value || shipInput.value.trim() === '') {
+            shipInput.value = '0';
+        }
+
+        const rawShipping = (shipInput.value || '').toString().replace(/\./g, '');
+        const shippingCost = parseFloat(rawShipping) || 0;
+        const totalWithShipping = Math.round(currentGrandTotal + shippingCost);
+
+        document.getElementById('modalGrandTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalWithShipping);
+        document.getElementById('inputPaidAmount').value = formatRupiahString(totalWithShipping);
+        document.getElementById('modalPaidTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalWithShipping);
         document.getElementById('modalChangeAmount').innerText = 'Rp 0';
+
+        calcChange();
 
         checkoutModal.show();
         setTimeout(() => {
@@ -1351,20 +1437,34 @@
         }, 400);
     }
 
+    function setZeroShipping() {
+        const shipInput = document.getElementById('inputShippingCost');
+        shipInput.value = '0';
+        calcChange();
+    }
+
     function handlePaymentMethodChange(method) {
         const quickCash = document.getElementById('quickCashContainer');
+        const rawShipping = (document.getElementById('inputShippingCost').value || '').toString().replace(/\./g, '');
+        const shippingCost = parseFloat(rawShipping) || 0;
+        const totalWithShipping = Math.round(currentGrandTotal + shippingCost);
+
         if (method === 'cash') {
             quickCash.style.display = 'block';
         } else {
             quickCash.style.display = 'none';
-            document.getElementById('inputPaidAmount').value = formatRupiahString(currentGrandTotal);
+            document.getElementById('inputPaidAmount').value = formatRupiahString(totalWithShipping);
         }
         calcChange();
     }
 
     function setQuickCash(val) {
+        const rawShipping = (document.getElementById('inputShippingCost').value || '').toString().replace(/\./g, '');
+        const shippingCost = parseFloat(rawShipping) || 0;
+        const totalWithShipping = Math.round(currentGrandTotal + shippingCost);
+
         if (val === 'exact') {
-            document.getElementById('inputPaidAmount').value = formatRupiahString(currentGrandTotal);
+            document.getElementById('inputPaidAmount').value = formatRupiahString(totalWithShipping);
         } else {
             document.getElementById('inputPaidAmount').value = formatRupiahString(val);
         }
@@ -1372,9 +1472,25 @@
     }
 
     function calcChange() {
+        const rawShipping = (document.getElementById('inputShippingCost').value || '').toString().replace(/\./g, '');
+        const shippingCost = parseFloat(rawShipping) || 0;
+        const totalWithShipping = Math.round(currentGrandTotal + shippingCost);
+
+        // Update shipping summary row in modal
+        const shipRow = document.getElementById('modalShippingRow');
+        const shipText = document.getElementById('modalShippingText');
+        if (shippingCost > 0) {
+            shipRow.classList.remove('d-none');
+            shipText.innerText = '+Rp ' + new Intl.NumberFormat('id-ID').format(shippingCost);
+        } else {
+            shipRow.classList.add('d-none');
+        }
+
+        document.getElementById('modalGrandTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalWithShipping);
+
         const rawPaid = (document.getElementById('inputPaidAmount').value || '').toString().replace(/\./g, '');
         const paid = parseFloat(rawPaid) || 0;
-        const change = paid - currentGrandTotal;
+        const change = paid - totalWithShipping;
 
         document.getElementById('modalPaidTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(paid);
         document.getElementById('modalChangeAmount').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.max(0, change));
@@ -1392,11 +1508,15 @@
     }
 
     function submitCheckout() {
+        const rawShipping = (document.getElementById('inputShippingCost').value || '').toString().replace(/\./g, '');
+        const shippingCost = parseFloat(rawShipping) || 0;
+        const totalWithShipping = Math.round(currentGrandTotal + shippingCost);
+
         const rawPaid = (document.getElementById('inputPaidAmount').value || '').toString().replace(/\./g, '');
         const paidAmount = parseFloat(rawPaid) || 0;
         const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
 
-        if (paymentMethod === 'cash' && paidAmount < currentGrandTotal) {
+        if (paymentMethod === 'cash' && paidAmount < totalWithShipping) {
             alert('Nominal uang tunai kurang dari total tagihan.');
             return;
         }
@@ -1414,6 +1534,7 @@
             discount_type: document.getElementById('selectDiscountType').value,
             discount_value: parseFloat(rawDiscVal) || 0,
             tax_percentage: parseFloat(document.getElementById('inputTax').value) || 0,
+            shipping_cost: shippingCost,
             paid_amount: paidAmount,
             payment_method: paymentMethod,
             notes: document.getElementById('inputSaleNotes').value
@@ -1702,6 +1823,10 @@
         cart = [];
         renderCart();
         document.getElementById('barcodeSearchInput').value = '';
+        const shipInput = document.getElementById('inputShippingCost');
+        if (shipInput) shipInput.value = '0';
+        const notesInput = document.getElementById('inputSaleNotes');
+        if (notesInput) notesInput.value = '';
         fetchProducts('');
         applyCustomerSelection('', 'Pelanggan: Umum (Walk-in)', 'umum');
         document.getElementById('barcodeSearchInput').focus();

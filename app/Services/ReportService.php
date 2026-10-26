@@ -75,8 +75,10 @@ class ReportService
         $totalSubtotal = $sales->sum('subtotal');
         $totalDiscount = $sales->sum('discount_amount');
         $totalTax = $sales->sum('tax_amount');
+        $totalShipping = $sales->sum('shipping_cost');
         $totalGrandTotal = $sales->sum('grand_total');
         $totalTransactions = $sales->count();
+        $totalProductSales = $totalSubtotal - $totalDiscount;
 
         return [
             'sales' => $sales,
@@ -84,6 +86,8 @@ class ReportService
                 'total_subtotal' => $totalSubtotal,
                 'total_discount' => $totalDiscount,
                 'total_tax' => $totalTax,
+                'total_shipping' => $totalShipping,
+                'total_product_sales' => $totalProductSales,
                 'total_grand_total' => $totalGrandTotal,
                 'total_transactions' => $totalTransactions,
             ],
@@ -100,9 +104,13 @@ class ReportService
             ->where('status', 'completed')
             ->get();
 
-        $totalRevenue = (float) $sales->sum('grand_total');
         $totalSubtotal = (float) $sales->sum('subtotal');
         $totalDiscounts = (float) $sales->sum('discount_amount');
+        $totalShippingCost = (float) $sales->sum('shipping_cost');
+        $totalGrandTotal = (float) $sales->sum('grand_total');
+
+        // Total Product Net Revenue (Penjualan Produk Murni - tidak termasuk ongkir)
+        $totalProductRevenue = $totalSubtotal - $totalDiscounts;
 
         // Total Cost of Goods Sold (HPP)
         $totalCogs = 0;
@@ -112,8 +120,8 @@ class ReportService
             }
         }
 
-        // Gross Profit = Revenue - HPP
-        $grossProfit = $totalRevenue - $totalCogs;
+        // Gross Profit from products = Product Revenue - HPP
+        $grossProfit = $totalProductRevenue - $totalCogs;
 
         // Operating Expenses (Cash out transactions categorized as expense/other)
         $expenses = (float) CashTransaction::whereBetween('transaction_date', [$start, $end])
@@ -125,7 +133,10 @@ class ReportService
         $netProfit = $grossProfit - $expenses;
 
         return [
-            'total_revenue' => $totalRevenue,
+            'total_revenue' => $totalProductRevenue,
+            'total_product_revenue' => $totalProductRevenue,
+            'total_shipping' => $totalShippingCost,
+            'total_grand_total' => $totalGrandTotal,
             'total_subtotal' => $totalSubtotal,
             'total_discounts' => $totalDiscounts,
             'total_cogs' => $totalCogs,
@@ -291,6 +302,7 @@ class ReportService
                 DB::raw('SUM(subtotal) as total_subtotal'),
                 DB::raw('SUM(discount_amount) as total_discount'),
                 DB::raw('SUM(tax_amount) as total_tax'),
+                DB::raw('SUM(shipping_cost) as total_shipping'),
                 DB::raw('SUM(grand_total) as total_grand_total')
             )
             ->where('status', 'completed')
@@ -303,6 +315,7 @@ class ReportService
         $totalSubtotal = (float) $salesByDate->sum('total_subtotal');
         $totalDiscount = (float) $salesByDate->sum('total_discount');
         $totalTax = (float) $salesByDate->sum('total_tax');
+        $totalShipping = (float) $salesByDate->sum('total_shipping');
         $totalGrandTotal = (float) $salesByDate->sum('total_grand_total');
 
         $daysCount = max(1, $salesByDate->count());
@@ -316,6 +329,8 @@ class ReportService
                 'total_subtotal' => $totalSubtotal,
                 'total_discount' => $totalDiscount,
                 'total_tax' => $totalTax,
+                'total_shipping' => $totalShipping,
+                'total_product_sales' => $totalSubtotal - $totalDiscount,
                 'total_grand_total' => $totalGrandTotal,
                 'active_days' => $salesByDate->count(),
                 'avg_daily_turnover' => $avgDailyTurnover,

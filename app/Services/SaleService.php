@@ -130,7 +130,14 @@ class SaleService
             $taxPercentage = (float) ($data['tax_percentage'] ?? Setting::get('tax_percentage', 0));
             $taxAmount = ($afterDiscount * $taxPercentage) / 100;
 
-            $grandTotal = round($afterDiscount + $taxAmount);
+            // Shipping Cost (Ongkos Kirim) - recorded separately from product sales
+            $rawShipping = $data['shipping_cost'] ?? 0;
+            $shippingCost = (float) str_replace(['Rp', 'rp', ' ', '.'], '', (string) $rawShipping);
+            if ($shippingCost < 0) {
+                $shippingCost = 0.0;
+            }
+
+            $grandTotal = round($afterDiscount + $taxAmount + $shippingCost);
             $paymentMethod = $data['payment_method'] ?? 'cash';
             $paidAmount = (float) ($data['paid_amount'] ?? $grandTotal);
 
@@ -154,6 +161,7 @@ class SaleService
                 'discount_amount' => $discountAmount,
                 'tax_percentage' => $taxPercentage,
                 'tax_amount' => $taxAmount,
+                'shipping_cost' => $shippingCost,
                 'grand_total' => $grandTotal,
                 'paid_amount' => $paidAmount,
                 'change_amount' => $changeAmount,

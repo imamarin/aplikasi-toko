@@ -99,6 +99,12 @@
                             <span>+Rp {{ number_format($sale->tax_amount, 0, ',', '.') }}</span>
                         </div>
                     @endif
+                    @if($sale->shipping_cost > 0)
+                        <div class="list-group-item d-flex justify-content-between px-0 py-2 small text-primary">
+                            <span><i class="bi bi-truck me-1"></i> Ongkos Kirim:</span>
+                            <span>+Rp {{ number_format($sale->shipping_cost, 0, ',', '.') }}</span>
+                        </div>
+                    @endif
                     <div class="list-group-item d-flex justify-content-between px-0 py-2 fs-5 fw-bold text-primary">
                         <span>Grand Total:</span>
                         <span>Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</span>

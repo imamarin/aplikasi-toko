@@ -21,6 +21,7 @@ class Sale extends Model
         'discount_amount',
         'tax_percentage',
         'tax_amount',
+        'shipping_cost',
         'grand_total',
         'paid_amount',
         'change_amount',
@@ -39,10 +40,19 @@ class Sale extends Model
             'discount_amount' => 'decimal:2',
             'tax_percentage' => 'decimal:2',
             'tax_amount' => 'decimal:2',
+            'shipping_cost' => 'decimal:2',
             'grand_total' => 'decimal:2',
             'paid_amount' => 'decimal:2',
             'change_amount' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Get net product sales (excluding shipping cost and after invoice discount).
+     */
+    public function getProductNetSalesAttribute(): float
+    {
+        return max(0, (float) $this->subtotal - (float) $this->discount_amount);
     }
 
     public function user()
