@@ -59,6 +59,13 @@ class CashShiftController extends Controller
 
     public function openShift(Request $request)
     {
+        $rawCash = $request->input('opening_cash');
+        if (is_string($rawCash)) {
+            $rawCash = str_replace(['Rp', 'rp', ' ', '.'], '', $rawCash);
+            $rawCash = str_replace(',', '.', $rawCash);
+            $request->merge(['opening_cash' => $rawCash]);
+        }
+
         $validated = $request->validate([
             'opening_cash' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],

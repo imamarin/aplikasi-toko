@@ -98,11 +98,11 @@
                             <td>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text bg-light">Rp</span>
-                                    <input type="number" step="1" min="0" name="items[0][cost_price]" value="0" class="form-control text-end cost-input" required oninput="calcRow(this)">
+                                    <input type="text" inputmode="numeric" name="items[0][cost_price]" value="0" class="form-control text-end cost-input input-rupiah" required oninput="calcRow(this)">
                                 </div>
                             </td>
                             <td>
-                                <input type="number" step="1" min="0" name="items[0][discount]" value="0" class="form-control text-end discount-input" oninput="calcRow(this)">
+                                <input type="text" inputmode="numeric" name="items[0][discount]" value="0" class="form-control text-end discount-input input-rupiah" oninput="calcRow(this)">
                             </td>
                             <td class="text-end fw-bold">
                                 <span class="row-subtotal-text">Rp 0</span>
@@ -129,7 +129,7 @@
                             <span class="text-muted">Potongan Diskon PO:</span>
                             <div class="input-group input-group-sm" style="width: 150px;">
                                 <span class="input-group-text bg-light">Rp</span>
-                                <input type="number" step="1" min="0" name="discount_amount" id="inputOverallDiscount" value="0" class="form-control text-end" oninput="calcAll()">
+                                <input type="text" inputmode="numeric" name="discount_amount" id="inputOverallDiscount" value="0" class="form-control text-end input-rupiah" oninput="calcAll()">
                             </div>
                         </div>
                         <div class="list-group-item d-flex justify-content-between px-0 py-2 fs-5 fw-bold text-dark">
@@ -140,7 +140,7 @@
                             <span class="fw-semibold">Uang Dibayarkan Saat Ini:</span>
                             <div class="input-group input-group-sm" style="width: 170px;">
                                 <span class="input-group-text bg-light">Rp</span>
-                                <input type="number" step="1" min="0" name="paid_amount" id="inputPaidAmount" value="0" class="form-control text-end">
+                                <input type="text" inputmode="numeric" name="paid_amount" id="inputPaidAmount" value="0" class="form-control text-end input-rupiah">
                             </div>
                         </div>
                     </div>
@@ -198,11 +198,11 @@
             <td>
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light">Rp</span>
-                    <input type="number" step="1" min="0" name="items[${pRowIndex}][cost_price]" value="0" class="form-control text-end cost-input" required oninput="calcRow(this)">
+                    <input type="text" inputmode="numeric" name="items[${pRowIndex}][cost_price]" value="0" class="form-control text-end cost-input input-rupiah" required oninput="calcRow(this)">
                 </div>
             </td>
             <td>
-                <input type="number" step="1" min="0" name="items[${pRowIndex}][discount]" value="0" class="form-control text-end discount-input" oninput="calcRow(this)">
+                <input type="text" inputmode="numeric" name="items[${pRowIndex}][discount]" value="0" class="form-control text-end discount-input input-rupiah" oninput="calcRow(this)">
             </td>
             <td class="text-end fw-bold">
                 <span class="row-subtotal-text">Rp 0</span>
@@ -215,6 +215,7 @@
         `;
 
         tbody.appendChild(tr);
+        initRupiahInputs(tr);
         pRowIndex++;
     }
 
@@ -233,15 +234,15 @@
         const selectedOption = select.options[select.selectedIndex];
         const cost = parseFloat(selectedOption.getAttribute('data-cost') || 0);
 
-        row.querySelector('.cost-input').value = cost;
+        row.querySelector('.cost-input').value = formatRupiahString(cost);
         calcRow(select);
     }
 
     function calcRow(el) {
         const row = el.closest('tr');
         const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
-        const cost = parseFloat(row.querySelector('.cost-input').value) || 0;
-        const discount = parseFloat(row.querySelector('.discount-input').value) || 0;
+        const cost = parseFloat((row.querySelector('.cost-input').value || '').replace(/\./g, '')) || 0;
+        const discount = parseFloat((row.querySelector('.discount-input').value || '').replace(/\./g, '')) || 0;
 
         const subtotal = Math.max(0, (qty * cost) - discount);
         row.querySelector('.row-subtotal-text').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(subtotal);
@@ -257,12 +258,12 @@
 
         rows.forEach(r => {
             const qty = parseFloat(r.querySelector('.qty-input').value) || 0;
-            const cost = parseFloat(r.querySelector('.cost-input').value) || 0;
-            const discount = parseFloat(r.querySelector('.discount-input').value) || 0;
+            const cost = parseFloat((r.querySelector('.cost-input').value || '').replace(/\./g, '')) || 0;
+            const discount = parseFloat((r.querySelector('.discount-input').value || '').replace(/\./g, '')) || 0;
             totalSubtotal += Math.max(0, (qty * cost) - discount);
         });
 
-        const overallDiscount = parseFloat(document.getElementById('inputOverallDiscount').value) || 0;
+        const overallDiscount = parseFloat((document.getElementById('inputOverallDiscount').value || '').replace(/\./g, '')) || 0;
         currentGrandTotal = Math.max(0, totalSubtotal - overallDiscount);
 
         document.getElementById('totalSubtotalText').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(totalSubtotal);
@@ -270,7 +271,7 @@
 
         const method = document.getElementById('selectPaymentMethod').value;
         if (method !== 'credit') {
-            document.getElementById('inputPaidAmount').value = currentGrandTotal;
+            document.getElementById('inputPaidAmount').value = formatRupiahString(currentGrandTotal);
         }
     }
 </script>

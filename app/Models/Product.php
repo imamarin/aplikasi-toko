@@ -22,6 +22,14 @@ class Product extends Model
         'min_stock',
         'image',
         'status',
+        'discount_type',
+        'discount_value',
+    ];
+
+    protected $appends = [
+        'has_discount',
+        'unit_discount',
+        'final_price',
     ];
 
     protected function casts(): array
@@ -29,10 +37,34 @@ class Product extends Model
         return [
             'cost_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
+            'discount_value' => 'decimal:2',
             'stock' => 'float',
             'min_stock' => 'float',
             'status' => 'boolean',
         ];
+    }
+
+    public function getHasDiscountAttribute(): bool
+    {
+        return (float) $this->discount_value > 0;
+    }
+
+    public function getUnitDiscountAttribute(): float
+    {
+        if (!$this->has_discount) {
+            return 0;
+        }
+
+        if ($this->discount_type === 'percentage') {
+            return round(((float) $this->selling_price * (float) $this->discount_value) / 100, 2);
+        }
+
+        return min((float) $this->selling_price, (float) $this->discount_value);
+    }
+
+    public function getFinalPriceAttribute(): float
+    {
+        return max(0, (float) $this->selling_price - $this->unit_discount);
     }
 
     public function category()

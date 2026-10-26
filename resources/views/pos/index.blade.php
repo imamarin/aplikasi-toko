@@ -245,7 +245,12 @@
                 <div class="row g-2 g-xl-3" id="productsGrid">
                     @forelse($products as $prod)
                         <div class="col-6 col-sm-4 col-md-4 col-xl-3">
-                            <div class="product-card p-3 h-100 d-flex flex-column" onclick="addToCart({{ json_encode($prod) }})">
+                            <div class="product-card p-3 h-100 d-flex flex-column position-relative" onclick="addToCart({{ json_encode($prod) }})">
+                                @if($prod->has_discount)
+                                    <span class="badge bg-danger position-absolute top-0 end-0 m-2 shadow-xs" style="font-size: 0.65rem; z-index: 2;">
+                                        <i class="bi bi-tag-fill me-1"></i>Promo
+                                    </span>
+                                @endif
                                 <div class="text-center mb-2">
                                     @if($prod->image)
                                         <img src="{{ asset('storage/' . $prod->image) }}" alt="{{ $prod->name }}" class="rounded-3 shadow-sm" style="width: 100%; height: 95px; object-fit: cover;">
@@ -257,7 +262,14 @@
                                 </div>
                                 <div class="fw-bold text-dark small text-truncate mb-1" title="{{ $prod->name }}">{{ $prod->name }}</div>
                                 <div class="d-flex justify-content-between align-items-center mt-auto pt-2 border-top">
-                                    <div class="fw-bold text-primary small">Rp {{ number_format($prod->selling_price, 0, ',', '.') }}</div>
+                                    @if($prod->has_discount)
+                                        <div>
+                                            <div class="fw-bold text-danger small">Rp {{ number_format($prod->final_price, 0, ',', '.') }}</div>
+                                            <div class="text-decoration-line-through text-muted" style="font-size: 0.65rem;">Rp {{ number_format($prod->selling_price, 0, ',', '.') }}</div>
+                                        </div>
+                                    @else
+                                        <div class="fw-bold text-primary small">Rp {{ number_format($prod->selling_price, 0, ',', '.') }}</div>
+                                    @endif
                                     <span class="badge {{ $prod->stock <= 0 ? 'bg-danger' : ($prod->stock <= $prod->min_stock ? 'bg-warning text-dark' : 'bg-light text-secondary border') }}" style="font-size: 0.72rem;">
                                         {{ $prod->stock }} {{ $prod->unit?->short_name }}
                                     </span>
@@ -346,8 +358,8 @@
                     <div class="d-flex justify-content-between align-items-center mb-1 small">
                         <span class="text-muted">Diskon Nota:</span>
                         <div class="d-flex gap-1" style="width: 200px;">
-                            <input type="number" id="inputDiscount" min="0" class="form-control form-control-sm text-end" value="0" oninput="renderCartSummary()">
-                            <select id="selectDiscountType" class="form-select form-select-sm" style="width: 80px;" onchange="renderCartSummary()">
+                            <input type="text" inputmode="numeric" id="inputDiscount" class="form-control form-control-sm text-end input-rupiah" value="0" oninput="renderCartSummary()">
+                            <select id="selectDiscountType" class="form-select form-select-sm" style="width: 80px;" onchange="handleCartDiscountTypeChange()">
                                 <option value="fixed">Rp</option>
                                 <option value="percentage">%</option>
                             </select>
@@ -432,7 +444,7 @@
                         <!-- Uang Pembayaran -->
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">Uang Dibayarkan (Rp) <span class="text-danger">*</span></label>
-                            <input type="number" id="inputPaidAmount" class="form-control form-control-lg fw-bold fs-4 text-end" oninput="calcChange()">
+                            <input type="text" inputmode="numeric" id="inputPaidAmount" class="form-control form-control-lg fw-bold fs-4 text-end input-rupiah" oninput="calcChange()">
                         </div>
 
                         <!-- Quick Cash Shortcuts (Khusus Cash) -->
@@ -736,32 +748,74 @@
                 <!-- Tabs: Pilihan Mode -->
                 <ul class="nav nav-pills nav-fill mb-3 bg-light p-1 rounded-3" id="customPriceTab" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active py-2 fw-semibold small" id="tab-nominal" data-bs-toggle="pill" data-bs-target="#panel-nominal" type="button" role="tab" onclick="switchCustomMode('nominal')">
-                            <i class="bi bi-cash-coin me-1"></i> Beli Nominal (Rp)
+                        <button class="nav-link active py-2 fw-semibold small" id="tab-discount" data-bs-toggle="pill" data-bs-target="#panel-discount" type="button" role="tab" onclick="switchCustomMode('discount')">
+                            <i class="bi bi-tag-fill me-1 text-danger"></i> Diskon Item
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-2 fw-semibold small" id="tab-nominal" data-bs-toggle="pill" data-bs-target="#panel-nominal" type="button" role="tab" onclick="switchCustomMode('nominal')">
+                            <i class="bi bi-cash-coin me-1"></i> Beli Nominal
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link py-2 fw-semibold small" id="tab-price" data-bs-toggle="pill" data-bs-target="#panel-price" type="button" role="tab" onclick="switchCustomMode('price')">
-                            <i class="bi bi-tags me-1"></i> Ubah Harga Satuan
+                            <i class="bi bi-tags me-1"></i> Ubah Harga
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link py-2 fw-semibold small" id="tab-qty" data-bs-toggle="pill" data-bs-target="#panel-qty" type="button" role="tab" onclick="switchCustomMode('qty')">
-                            <i class="bi bi-box-seam me-1"></i> Kuantitas (Qty)
+                            <i class="bi bi-box-seam me-1"></i> Qty
                         </button>
                     </li>
                 </ul>
 
                 <div class="tab-content" id="customPriceTabContent">
+                    <!-- Tab Diskon Item (Promo / Potongan Produk) -->
+                    <div class="tab-pane fade show active" id="panel-discount" role="tabpanel">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">
+                                Tipe & Nilai Diskon Produk:
+                            </label>
+                            <div class="input-group input-group-lg">
+                                <select id="selectCustomDiscountType" class="form-select fw-semibold" style="max-width: 110px;" onchange="handleCustomDiscountTypeChange()">
+                                    <option value="fixed">Rp (Tetap)</option>
+                                    <option value="percentage">% (Persen)</option>
+                                </select>
+                                <input type="text" inputmode="numeric" class="form-control fw-bold fs-4 text-danger input-rupiah" id="inputCustomDiscount" placeholder="0" oninput="calculateFromDiscount()">
+                                <button class="btn btn-outline-danger btn-sm" type="button" onclick="setQuickDiscount(0, 'fixed')" title="Hapus Diskon">
+                                    <i class="bi bi-x-circle"></i> Hapus
+                                </button>
+                            </div>
+                            <div class="form-text small text-muted mt-1">
+                                <i class="bi bi-info-circle me-1"></i> Diskon per unit barang ini akan memotong harga produk secara otomatis.
+                            </div>
+                        </div>
+
+                        <!-- Shortcut Quick Discounts -->
+                        <div class="mb-2">
+                            <label class="form-label small text-muted mb-1">Pilihan Cepat Diskon:</label>
+                            <div class="d-flex flex-wrap gap-1">
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="setQuickDiscount(5, 'percentage')">5%</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="setQuickDiscount(10, 'percentage')">10%</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="setQuickDiscount(15, 'percentage')">15%</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="setQuickDiscount(20, 'percentage')">20%</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="setQuickDiscount(1000, 'fixed')">Rp 1.000</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="setQuickDiscount(2000, 'fixed')">Rp 2.000</button>
+                                <button type="button" class="btn btn-outline-danger btn-sm rounded-pill" onclick="setQuickDiscount(5000, 'fixed')">Rp 5.000</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" onclick="setQuickDiscount(0, 'fixed')">Tanpa Diskon</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Tab 1: Beli Nominal Uang -->
-                    <div class="tab-pane fade show active" id="panel-nominal" role="tabpanel">
+                    <div class="tab-pane fade" id="panel-nominal" role="tabpanel">
                         <div class="mb-3">
                             <label class="form-label small fw-semibold text-secondary">
                                 Masukkan Nominal Uang Pembeli (Rp):
                             </label>
                             <div class="input-group input-group-lg">
                                 <span class="input-group-text fw-bold bg-white text-muted">Rp</span>
-                                <input type="number" class="form-control fw-bold fs-4 text-primary" id="inputCustomNominal" placeholder="17000" min="1" step="100" oninput="calculateFromNominal()">
+                                <input type="text" inputmode="numeric" class="form-control fw-bold fs-4 text-primary input-rupiah" id="inputCustomNominal" placeholder="17.000" oninput="calculateFromNominal()">
                             </div>
                             <div class="form-text small text-muted mt-1">
                                 <i class="bi bi-info-circle me-1"></i> Contoh: Masukkan <code>17000</code> jika pembeli ingin beli senilai Rp 17.000. Kuantitas satuan akan otomatis disesuaikan.
@@ -790,7 +844,7 @@
                             </label>
                             <div class="input-group">
                                 <span class="input-group-text fw-bold bg-white text-muted">Rp</span>
-                                <input type="number" class="form-control fw-bold" id="inputCustomPrice" placeholder="18500" min="0" step="100" oninput="calculateFromPrice()">
+                                <input type="text" inputmode="numeric" class="form-control fw-bold input-rupiah" id="inputCustomPrice" placeholder="18.500" oninput="calculateFromPrice()">
                                 <button class="btn btn-outline-secondary btn-sm" type="button" onclick="resetToOriginalPrice()" title="Kembalikan ke harga normal sistem">
                                     <i class="bi bi-arrow-counterclockwise"></i> Reset
                                 </button>
@@ -837,15 +891,19 @@
                         <i class="bi bi-receipt-cutoff me-1"></i> Ringkasan Penyesuaian Item:
                     </div>
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-secondary small">Kuantitas Didapat:</span>
+                        <span class="text-secondary small">Kuantitas:</span>
                         <span class="fw-bold fs-6 text-dark" id="previewCustomQty">0 pcs</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-secondary small">Harga Satuan Terhitung:</span>
+                        <span class="text-secondary small">Harga Satuan Normal:</span>
                         <span class="text-dark small" id="previewCustomPrice">Rp 0 / pcs</span>
                     </div>
+                    <div class="d-flex justify-content-between align-items-center mb-1 text-danger d-none" id="previewCustomDiscountRow">
+                        <span class="small fw-semibold"><i class="bi bi-tag-fill me-1"></i>Potongan Diskon Produk:</span>
+                        <span class="fw-bold small" id="previewCustomDiscount">-Rp 0</span>
+                    </div>
                     <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-1">
-                        <span class="fw-bold text-dark">Total Pembayaran Item:</span>
+                        <span class="fw-bold text-dark">Subtotal Bersih Item:</span>
                         <span class="fw-bold fs-5 text-primary" id="previewCustomTotal">Rp 0</span>
                     </div>
                 </div>
@@ -1008,15 +1066,30 @@
                     ? `<span class="badge bg-warning text-dark" style="font-size: 0.72rem;">${stockDisplay} ${p.unit?.short_name || 'pcs'}</span>`
                     : `<span class="badge bg-light text-secondary border" style="font-size: 0.72rem;">${stockDisplay} ${p.unit?.short_name || 'pcs'}</span>`);
 
+            const isPromo = p.has_discount || (parseFloat(p.discount_value) > 0);
+            const finalPrice = p.final_price !== undefined ? p.final_price : (isPromo ? (p.discount_type === 'percentage' ? (p.selling_price * (1 - p.discount_value/100)) : (p.selling_price - p.discount_value)) : p.selling_price);
+
+            const promoBadge = isPromo 
+                ? `<span class="badge bg-danger position-absolute top-0 end-0 m-2 shadow-xs" style="font-size: 0.65rem; z-index: 2;"><i class="bi bi-tag-fill me-1"></i>Promo</span>` 
+                : '';
+
+            const priceHtml = isPromo
+                ? `<div>
+                    <div class="fw-bold text-danger small">Rp ${new Intl.NumberFormat('id-ID').format(finalPrice)}</div>
+                    <div class="text-decoration-line-through text-muted" style="font-size: 0.65rem;">Rp ${new Intl.NumberFormat('id-ID').format(p.selling_price)}</div>
+                   </div>`
+                : `<div class="fw-bold text-primary small">Rp ${new Intl.NumberFormat('id-ID').format(p.selling_price)}</div>`;
+
             html += `
                 <div class="col-6 col-sm-4 col-md-4 col-xl-3">
-                    <div class="product-card p-3 h-100 d-flex flex-column" onclick='addToCart(${JSON.stringify(p)})'>
+                    <div class="product-card p-3 h-100 d-flex flex-column position-relative" onclick='addToCart(${JSON.stringify(p)})'>
+                        ${promoBadge}
                         <div class="text-center mb-2">
                             ${imgHtml}
                         </div>
                         <div class="fw-bold text-dark small text-truncate mb-1" title="${p.name}">${p.name}</div>
                         <div class="d-flex justify-content-between align-items-center mt-auto pt-2 border-top">
-                            <div class="fw-bold text-primary small">Rp ${new Intl.NumberFormat('id-ID').format(p.selling_price)}</div>
+                            ${priceHtml}
                             ${stockBadge}
                         </div>
                     </div>
@@ -1041,12 +1114,31 @@
                 return;
             }
             existing.qty = Math.round((existing.qty + 1) * 1000) / 1000;
-            if (existing.is_custom_subtotal) {
-                existing.subtotal = Math.round(existing.price * existing.qty);
-                existing.is_custom_subtotal = false;
+            if (existing.discount_value > 0) {
+                const gross = existing.price * existing.qty;
+                if (existing.discount_type === 'percentage') {
+                    existing.discount = Math.round((gross * existing.discount_value) / 100);
+                } else {
+                    existing.discount = Math.round(existing.discount_value * existing.qty);
+                }
+                if (existing.discount > gross) existing.discount = gross;
             }
+            existing.subtotal = Math.max(0, Math.round((existing.price * existing.qty) - (existing.discount || 0)));
+            existing.is_custom_subtotal = false;
         } else {
             const price = parseFloat(product.selling_price);
+            const discountType = product.discount_type || 'fixed';
+            const discountVal = parseFloat(product.discount_value) || 0;
+            
+            let itemDiscount = 0;
+            if (discountVal > 0) {
+                if (discountType === 'percentage') {
+                    itemDiscount = Math.round((price * discountVal) / 100);
+                } else {
+                    itemDiscount = Math.min(price, discountVal);
+                }
+            }
+
             cart.push({
                 product_id: product.id,
                 name: product.name,
@@ -1055,10 +1147,12 @@
                 stock: stockNum,
                 unit: product.unit?.short_name || 'pcs',
                 qty: 1,
-                discount: 0,
-                is_custom: false,
+                discount_type: discountType,
+                discount_value: discountVal,
+                discount: itemDiscount,
+                is_custom: itemDiscount > 0,
                 is_custom_subtotal: false,
-                subtotal: price
+                subtotal: Math.max(0, price - itemDiscount)
             });
         }
 
@@ -1088,7 +1182,16 @@
         }
 
         item.qty = newQty;
-        item.subtotal = Math.round(item.price * item.qty);
+        if (item.discount_value > 0) {
+            const gross = item.price * item.qty;
+            if (item.discount_type === 'percentage') {
+                item.discount = Math.round((gross * item.discount_value) / 100);
+            } else {
+                item.discount = Math.round(item.discount_value * item.qty);
+            }
+            if (item.discount > gross) item.discount = gross;
+        }
+        item.subtotal = Math.max(0, Math.round((item.price * item.qty) - (item.discount || 0)));
         item.is_custom_subtotal = false;
         renderCart();
     }
@@ -1123,14 +1226,20 @@
 
         let html = '';
         cart.forEach((item, idx) => {
+            const lineGross = item.price * item.qty;
+            const lineDiscount = item.discount || 0;
             const lineTotal = (item.subtotal !== undefined && item.is_custom_subtotal)
                 ? item.subtotal
-                : ((item.price * item.qty) - item.discount);
+                : Math.max(0, lineGross - lineDiscount);
 
             const isCustom = item.is_custom || (item.original_price && item.price !== item.original_price) || item.is_custom_subtotal || (!Number.isInteger(item.qty));
 
             const customBadge = isCustom 
                 ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size: 0.65rem; padding: 2px 5px;" title="Harga atau kuantitas disesuaikan">Custom</span>` 
+                : '';
+
+            const discountBadge = lineDiscount > 0
+                ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1 cursor-pointer" onclick="openCustomItemModal(${idx}, 'discount')" style="font-size: 0.65rem; padding: 2px 5px;" title="Diskon Produk: -Rp ${new Intl.NumberFormat('id-ID').format(lineDiscount)}"><i class="bi bi-tag-fill me-1"></i>-Rp ${new Intl.NumberFormat('id-ID').format(lineDiscount)}</span>`
                 : '';
 
             const unitLabel = item.unit || 'pcs';
@@ -1139,11 +1248,14 @@
             html += `
                 <div class="card p-2 mb-2 border rounded-3 bg-white shadow-xs">
                     <div class="d-flex justify-content-between align-items-start mb-1">
-                        <div class="fw-semibold text-dark small text-truncate pe-2" style="max-width: 165px;" title="${item.name}">
-                            ${item.name} ${customBadge}
+                        <div class="fw-semibold text-dark small text-truncate pe-2" style="max-width: 155px;" title="${item.name}">
+                            ${item.name} ${customBadge} ${discountBadge}
                         </div>
                         <div class="d-flex align-items-center gap-1">
-                            <button type="button" class="btn btn-sm btn-link text-primary p-0 text-decoration-none" onclick="openCustomItemModal(${idx})" title="Sesuaikan Harga / Beli Nominal (Contoh: Beli Rp 17.000)">
+                            <button type="button" class="btn btn-sm btn-link ${lineDiscount > 0 ? 'text-danger' : 'text-secondary'} p-0 text-decoration-none" onclick="openCustomItemModal(${idx}, 'discount')" title="Atur Diskon Produk">
+                                <i class="bi bi-tag-fill fs-6"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-link text-primary p-0 text-decoration-none ms-1" onclick="openCustomItemModal(${idx})" title="Sesuaikan Harga / Beli Nominal">
                                 <i class="bi bi-pencil-square fs-6"></i>
                             </button>
                             <button type="button" class="btn btn-sm text-danger p-0 ms-1" onclick="removeItem(${idx})" title="Hapus item">
@@ -1152,12 +1264,13 @@
                         </div>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-muted small cursor-pointer" onclick="openCustomItemModal(${idx})" title="Klik untuk ubah harga / beli nominal">
+                        <div class="text-muted small cursor-pointer" onclick="openCustomItemModal(${idx})" title="Klik untuk ubah harga / diskon">
                             Rp ${new Intl.NumberFormat('id-ID').format(item.price)}<span style="font-size: 0.72rem;">/${unitLabel}</span>
+                            ${lineDiscount > 0 ? `<div class="text-danger fw-semibold" style="font-size: 0.7rem;">Disc: -Rp ${new Intl.NumberFormat('id-ID').format(lineDiscount)}</div>` : ''}
                         </div>
                         <div class="d-flex align-items-center gap-1">
                             <button type="button" class="btn btn-sm btn-light border qty-btn" onclick="updateQty(${idx}, -1)">-</button>
-                            <span class="px-2 fw-bold small cursor-pointer" onclick="openCustomItemModal(${idx})" title="Klik untuk atur kuantitas">${formattedQty}</span>
+                            <span class="px-2 fw-bold small cursor-pointer" onclick="openCustomItemModal(${idx}, 'qty')" title="Klik untuk atur kuantitas">${formattedQty}</span>
                             <button type="button" class="btn btn-sm btn-light border qty-btn" onclick="updateQty(${idx}, 1)">+</button>
                         </div>
                         <div class="fw-bold text-dark small">
@@ -1184,7 +1297,8 @@
             totalItems += item.qty;
         });
 
-        const discountInput = parseFloat(document.getElementById('inputDiscount').value) || 0;
+        const rawDisc = (document.getElementById('inputDiscount').value || '').toString().replace(/\./g, '');
+        const discountInput = parseFloat(rawDisc) || 0;
         const discountType = document.getElementById('selectDiscountType').value;
         let discountAmount = 0;
 
@@ -1207,10 +1321,25 @@
         document.getElementById('textTotalItems').innerText = formatQty(totalItems) + ' Item';
     }
 
+    function handleCartDiscountTypeChange() {
+        const type = document.getElementById('selectDiscountType').value;
+        const input = document.getElementById('inputDiscount');
+        if (type === 'fixed') {
+            input.classList.add('input-rupiah');
+            attachRupiahFormatter(input);
+            if (input.value) input.value = formatRupiahString(input.value);
+        } else {
+            input.classList.remove('input-rupiah');
+            input._hasRupiahFormatter = false;
+            input.value = input.value.replace(/\./g, '');
+        }
+        renderCartSummary();
+    }
+
     // Checkout Flow
     function openCheckoutModal() {
         document.getElementById('modalGrandTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(currentGrandTotal);
-        document.getElementById('inputPaidAmount').value = currentGrandTotal;
+        document.getElementById('inputPaidAmount').value = formatRupiahString(currentGrandTotal);
         document.getElementById('modalPaidTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(currentGrandTotal);
         document.getElementById('modalChangeAmount').innerText = 'Rp 0';
 
@@ -1228,22 +1357,23 @@
             quickCash.style.display = 'block';
         } else {
             quickCash.style.display = 'none';
-            document.getElementById('inputPaidAmount').value = currentGrandTotal;
+            document.getElementById('inputPaidAmount').value = formatRupiahString(currentGrandTotal);
         }
         calcChange();
     }
 
     function setQuickCash(val) {
         if (val === 'exact') {
-            document.getElementById('inputPaidAmount').value = currentGrandTotal;
+            document.getElementById('inputPaidAmount').value = formatRupiahString(currentGrandTotal);
         } else {
-            document.getElementById('inputPaidAmount').value = val;
+            document.getElementById('inputPaidAmount').value = formatRupiahString(val);
         }
         calcChange();
     }
 
     function calcChange() {
-        const paid = parseFloat(document.getElementById('inputPaidAmount').value) || 0;
+        const rawPaid = (document.getElementById('inputPaidAmount').value || '').toString().replace(/\./g, '');
+        const paid = parseFloat(rawPaid) || 0;
         const change = paid - currentGrandTotal;
 
         document.getElementById('modalPaidTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(paid);
@@ -1262,7 +1392,8 @@
     }
 
     function submitCheckout() {
-        const paidAmount = parseFloat(document.getElementById('inputPaidAmount').value) || 0;
+        const rawPaid = (document.getElementById('inputPaidAmount').value || '').toString().replace(/\./g, '');
+        const paidAmount = parseFloat(rawPaid) || 0;
         const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
 
         if (paymentMethod === 'cash' && paidAmount < currentGrandTotal) {
@@ -1270,6 +1401,7 @@
             return;
         }
 
+        const rawDiscVal = (document.getElementById('inputDiscount').value || '').toString().replace(/\./g, '');
         const payload = {
             items: cart.map(i => ({
                 product_id: i.product_id,
@@ -1280,7 +1412,7 @@
             })),
             customer_id: document.getElementById('customerSelect').value || null,
             discount_type: document.getElementById('selectDiscountType').value,
-            discount_value: parseFloat(document.getElementById('inputDiscount').value) || 0,
+            discount_value: parseFloat(rawDiscVal) || 0,
             tax_percentage: parseFloat(document.getElementById('inputTax').value) || 0,
             paid_amount: paidAmount,
             payment_method: paymentMethod,
@@ -1886,6 +2018,9 @@
     let isNominalMode = false;
     let previewQty = 1;
     let previewPrice = 0;
+    let previewDiscountType = 'fixed';
+    let previewDiscountValue = 0;
+    let previewDiscountTotal = 0;
     let previewTotal = 0;
 
     function formatStockDisplay(val) {
@@ -1900,7 +2035,7 @@
         return Number.isInteger(num) ? num.toString() : parseFloat(num.toFixed(3)).toString();
     }
 
-    function openCustomItemModal(index) {
+    function openCustomItemModal(index, defaultTab = null) {
         if (!cart[index]) return;
         activeCustomIndex = index;
         const item = cart[index];
@@ -1916,47 +2051,100 @@
         // Set initial values
         previewPrice = item.price;
         previewQty = item.qty;
-        previewTotal = (item.subtotal !== undefined && item.is_custom_subtotal) ? item.subtotal : Math.round(item.price * item.qty);
+        previewDiscountType = item.discount_type || 'fixed';
+        previewDiscountValue = (item.discount_value !== undefined) ? item.discount_value : 0;
+        previewDiscountTotal = item.discount || 0;
+        previewTotal = (item.subtotal !== undefined && item.is_custom_subtotal) ? item.subtotal : Math.round((item.price * item.qty) - previewDiscountTotal);
         isNominalMode = !!item.is_custom_subtotal;
 
-        document.getElementById('inputCustomPrice').value = previewPrice;
+        document.getElementById('inputCustomPrice').value = formatRupiahString(previewPrice);
         document.getElementById('inputCustomQty').value = previewQty;
-        document.getElementById('inputCustomNominal').value = previewTotal;
+        document.getElementById('selectCustomDiscountType').value = previewDiscountType;
+        handleCustomDiscountTypeChange();
+        document.getElementById('inputCustomDiscount').value = (previewDiscountValue > 0) ? (previewDiscountType === 'fixed' ? formatRupiahString(previewDiscountValue) : previewDiscountValue) : '';
+        document.getElementById('inputCustomNominal').value = formatRupiahString(previewTotal);
 
         updateCustomPreview();
 
+        const tabDiscountBtn = document.getElementById('tab-discount');
         const tabNominalBtn = document.getElementById('tab-nominal');
         const tabPriceBtn = document.getElementById('tab-price');
+        const tabQtyBtn = document.getElementById('tab-qty');
 
-        if (item.is_custom_subtotal) {
-            switchCustomMode('nominal');
-            const tabInstance = bootstrap.Tab.getOrCreateInstance(tabNominalBtn);
-            tabInstance.show();
-        } else if (item.price !== (item.original_price || item.price)) {
-            switchCustomMode('price');
-            const tabInstance = bootstrap.Tab.getOrCreateInstance(tabPriceBtn);
-            tabInstance.show();
+        let targetTabBtn = tabDiscountBtn;
+        let targetMode = 'discount';
+
+        if (defaultTab === 'discount') {
+            targetTabBtn = tabDiscountBtn;
+            targetMode = 'discount';
+        } else if (defaultTab === 'qty') {
+            targetTabBtn = tabQtyBtn;
+            targetMode = 'qty';
+        } else if (defaultTab === 'price') {
+            targetTabBtn = tabPriceBtn;
+            targetMode = 'price';
+        } else if (defaultTab === 'nominal') {
+            targetTabBtn = tabNominalBtn;
+            targetMode = 'nominal';
         } else {
-            switchCustomMode('nominal');
-            const tabInstance = bootstrap.Tab.getOrCreateInstance(tabNominalBtn);
-            tabInstance.show();
+            // Auto-detect best tab
+            if (item.is_custom_subtotal) {
+                targetTabBtn = tabNominalBtn;
+                targetMode = 'nominal';
+            } else if (item.discount > 0) {
+                targetTabBtn = tabDiscountBtn;
+                targetMode = 'discount';
+            } else if (item.price !== (item.original_price || item.price)) {
+                targetTabBtn = tabPriceBtn;
+                targetMode = 'price';
+            } else {
+                targetTabBtn = tabDiscountBtn;
+                targetMode = 'discount';
+            }
         }
+
+        switchCustomMode(targetMode);
+        const tabInstance = bootstrap.Tab.getOrCreateInstance(targetTabBtn);
+        tabInstance.show();
 
         customItemModal.show();
         setTimeout(() => {
-            if (activeCustomMode === 'nominal') {
+            if (targetMode === 'discount') {
+                const inp = document.getElementById('inputCustomDiscount');
+                if (inp) { inp.focus(); inp.select(); }
+            } else if (targetMode === 'nominal') {
                 const inp = document.getElementById('inputCustomNominal');
-                if (inp) {
-                    inp.focus();
-                    inp.select();
-                }
+                if (inp) { inp.focus(); inp.select(); }
+            } else if (targetMode === 'price') {
+                const inp = document.getElementById('inputCustomPrice');
+                if (inp) { inp.focus(); inp.select(); }
+            } else if (targetMode === 'qty') {
+                const inp = document.getElementById('inputCustomQty');
+                if (inp) { inp.focus(); inp.select(); }
             }
         }, 400);
     }
 
+    function handleCustomDiscountTypeChange() {
+        const type = document.getElementById('selectCustomDiscountType').value;
+        const input = document.getElementById('inputCustomDiscount');
+        if (type === 'fixed') {
+            input.classList.add('input-rupiah');
+            attachRupiahFormatter(input);
+            if (input.value) input.value = formatRupiahString(input.value);
+        } else {
+            input.classList.remove('input-rupiah');
+            input._hasRupiahFormatter = false;
+            input.value = input.value.replace(/\./g, '');
+        }
+    }
+
     function switchCustomMode(mode) {
         activeCustomMode = mode;
-        if (mode === 'nominal') {
+        if (mode === 'discount') {
+            isNominalMode = false;
+            calculateFromDiscount();
+        } else if (mode === 'nominal') {
             isNominalMode = true;
             calculateFromNominal();
         } else if (mode === 'price') {
@@ -1968,18 +2156,68 @@
         }
     }
 
-    function calculateFromNominal() {
-        const nominal = parseFloat(document.getElementById('inputCustomNominal').value) || 0;
-        const currentItem = cart[activeCustomIndex];
-        const unitPrice = parseFloat(document.getElementById('inputCustomPrice').value) || (currentItem ? currentItem.price : 0);
+    function calculateFromDiscount() {
+        const type = document.getElementById('selectCustomDiscountType').value;
+        const rawVal = (document.getElementById('inputCustomDiscount').value || '').toString().replace(/\./g, '');
+        const val = parseFloat(rawVal) || 0;
+        previewDiscountType = type;
+        previewDiscountValue = val;
 
-        if (unitPrice > 0 && nominal > 0) {
-            previewQty = Math.round((nominal / unitPrice) * 1000) / 1000;
+        const gross = previewPrice * previewQty;
+        if (type === 'percentage') {
+            previewDiscountTotal = Math.round((gross * val) / 100);
+        } else {
+            previewDiscountTotal = Math.round(val * previewQty);
+        }
+
+        if (previewDiscountTotal > gross) {
+            previewDiscountTotal = gross;
+        }
+
+        previewTotal = Math.max(0, gross - previewDiscountTotal);
+        isNominalMode = false;
+        document.getElementById('inputCustomNominal').value = formatRupiahString(previewTotal);
+        updateCustomPreview();
+    }
+
+    function setQuickDiscount(val, type) {
+        document.getElementById('selectCustomDiscountType').value = type;
+        handleCustomDiscountTypeChange();
+        document.getElementById('inputCustomDiscount').value = val > 0 ? (type === 'fixed' ? formatRupiahString(val) : val) : '';
+        calculateFromDiscount();
+    }
+
+    function calculateFromNominal() {
+        const rawNominal = (document.getElementById('inputCustomNominal').value || '').toString().replace(/\./g, '');
+        const nominal = parseFloat(rawNominal) || 0;
+        const currentItem = cart[activeCustomIndex];
+        const rawPrice = (document.getElementById('inputCustomPrice').value || '').toString().replace(/\./g, '');
+        const unitPrice = parseFloat(rawPrice) || (currentItem ? currentItem.price : 0);
+
+        let effectiveUnitPrice = unitPrice;
+        if (previewDiscountValue > 0) {
+            if (previewDiscountType === 'percentage') {
+                effectiveUnitPrice = unitPrice - ((unitPrice * previewDiscountValue) / 100);
+            } else {
+                effectiveUnitPrice = Math.max(0, unitPrice - previewDiscountValue);
+            }
+        }
+
+        if (effectiveUnitPrice > 0 && nominal > 0) {
+            previewQty = Math.round((nominal / effectiveUnitPrice) * 1000) / 1000;
         } else {
             previewQty = 0;
         }
 
         previewPrice = unitPrice;
+        const gross = previewPrice * previewQty;
+        if (previewDiscountType === 'percentage') {
+            previewDiscountTotal = Math.round((gross * previewDiscountValue) / 100);
+        } else {
+            previewDiscountTotal = Math.round(previewDiscountValue * previewQty);
+        }
+        if (previewDiscountTotal > gross) previewDiscountTotal = gross;
+
         previewTotal = nominal;
         isNominalMode = true;
 
@@ -1988,33 +2226,53 @@
     }
 
     function calculateFromPrice() {
-        const newPrice = parseFloat(document.getElementById('inputCustomPrice').value) || 0;
+        const rawPrice = (document.getElementById('inputCustomPrice').value || '').toString().replace(/\./g, '');
+        const newPrice = parseFloat(rawPrice) || 0;
         const currentQty = parseFloat(document.getElementById('inputCustomQty').value) || 1;
 
         previewPrice = newPrice;
         previewQty = currentQty;
-        previewTotal = Math.round(newPrice * currentQty);
+        const gross = newPrice * currentQty;
+
+        if (previewDiscountType === 'percentage') {
+            previewDiscountTotal = Math.round((gross * previewDiscountValue) / 100);
+        } else {
+            previewDiscountTotal = Math.round(previewDiscountValue * previewQty);
+        }
+        if (previewDiscountTotal > gross) previewDiscountTotal = gross;
+
+        previewTotal = Math.max(0, gross - previewDiscountTotal);
         isNominalMode = false;
 
-        document.getElementById('inputCustomNominal').value = previewTotal;
+        document.getElementById('inputCustomNominal').value = formatRupiahString(previewTotal);
         updateCustomPreview();
     }
 
     function calculateFromQty() {
         const newQty = parseFloat(document.getElementById('inputCustomQty').value) || 0;
-        const unitPrice = parseFloat(document.getElementById('inputCustomPrice').value) || (cart[activeCustomIndex]?.price || 0);
+        const rawPrice = (document.getElementById('inputCustomPrice').value || '').toString().replace(/\./g, '');
+        const unitPrice = parseFloat(rawPrice) || (cart[activeCustomIndex]?.price || 0);
 
         previewQty = newQty;
         previewPrice = unitPrice;
-        previewTotal = Math.round(newQty * unitPrice);
+        const gross = newQty * unitPrice;
+
+        if (previewDiscountType === 'percentage') {
+            previewDiscountTotal = Math.round((gross * previewDiscountValue) / 100);
+        } else {
+            previewDiscountTotal = Math.round(previewDiscountValue * previewQty);
+        }
+        if (previewDiscountTotal > gross) previewDiscountTotal = gross;
+
+        previewTotal = Math.max(0, gross - previewDiscountTotal);
         isNominalMode = false;
 
-        document.getElementById('inputCustomNominal').value = previewTotal;
+        document.getElementById('inputCustomNominal').value = formatRupiahString(previewTotal);
         updateCustomPreview();
     }
 
     function setQuickNominal(amount) {
-        document.getElementById('inputCustomNominal').value = amount;
+        document.getElementById('inputCustomNominal').value = formatRupiahString(amount);
         calculateFromNominal();
     }
 
@@ -2026,7 +2284,7 @@
     function resetToOriginalPrice() {
         if (!cart[activeCustomIndex]) return;
         const orig = cart[activeCustomIndex].original_price || cart[activeCustomIndex].price;
-        document.getElementById('inputCustomPrice').value = orig;
+        document.getElementById('inputCustomPrice').value = formatRupiahString(orig);
         if (activeCustomMode === 'nominal') {
             calculateFromNominal();
         } else {
@@ -2040,6 +2298,18 @@
 
         document.getElementById('previewCustomQty').innerText = `${formatQty(previewQty)} ${unit}`;
         document.getElementById('previewCustomPrice').innerText = `Rp ${new Intl.NumberFormat('id-ID').format(previewPrice)} / ${unit}`;
+
+        const discRow = document.getElementById('previewCustomDiscountRow');
+        const discEl = document.getElementById('previewCustomDiscount');
+        if (previewDiscountTotal > 0) {
+            discRow.classList.remove('d-none');
+            const detailLabel = previewDiscountType === 'percentage' ? `${previewDiscountValue}%` : `Rp ${new Intl.NumberFormat('id-ID').format(previewDiscountValue)}/unit`;
+            discEl.innerText = `-Rp ${new Intl.NumberFormat('id-ID').format(previewDiscountTotal)} (${detailLabel})`;
+        } else {
+            discRow.classList.add('d-none');
+            discEl.innerText = '-Rp 0';
+        }
+
         document.getElementById('previewCustomTotal').innerText = `Rp ${new Intl.NumberFormat('id-ID').format(previewTotal)}`;
     }
 
@@ -2060,28 +2330,49 @@
 
         item.qty = previewQty;
         item.price = previewPrice;
+        item.discount_type = previewDiscountType;
+        item.discount_value = previewDiscountValue;
+        item.discount = previewDiscountTotal;
         item.subtotal = previewTotal;
         item.is_custom_subtotal = isNominalMode;
-        item.is_custom = (item.price !== item.original_price) || item.is_custom_subtotal || (!Number.isInteger(item.qty));
+        item.is_custom = (item.price !== item.original_price) || item.is_custom_subtotal || (!Number.isInteger(item.qty)) || (item.discount > 0);
 
         customItemModal.hide();
         renderCart();
-        showPosToast(`Item "${item.name}" disesuaikan: ${formatQty(item.qty)} ${item.unit} = Rp ${new Intl.NumberFormat('id-ID').format(item.subtotal)}`);
+        showPosToast(`Item "${item.name}" disesuaikan: ${formatQty(item.qty)} ${item.unit} = Rp ${new Intl.NumberFormat('id-ID').format(item.subtotal)}${item.discount > 0 ? ' (Diskon: -Rp ' + new Intl.NumberFormat('id-ID').format(item.discount) + ')' : ''}`);
     }
 
     function resetCustomItemToDefault() {
         if (activeCustomIndex < 0 || !cart[activeCustomIndex]) return;
 
         const item = cart[activeCustomIndex];
+        const originalProd = products.find(p => p.id === item.product_id);
+
         item.price = item.original_price || item.price;
         item.qty = 1;
-        item.subtotal = item.price;
-        item.is_custom = false;
         item.is_custom_subtotal = false;
+
+        if (originalProd && parseFloat(originalProd.discount_value) > 0) {
+            item.discount_type = originalProd.discount_type || 'fixed';
+            item.discount_value = parseFloat(originalProd.discount_value) || 0;
+            if (item.discount_type === 'percentage') {
+                item.discount = Math.round((item.price * item.discount_value) / 100);
+            } else {
+                item.discount = Math.min(item.price, item.discount_value);
+            }
+            item.is_custom = true;
+        } else {
+            item.discount_type = 'fixed';
+            item.discount_value = 0;
+            item.discount = 0;
+            item.is_custom = false;
+        }
+
+        item.subtotal = Math.max(0, item.price - item.discount);
 
         customItemModal.hide();
         renderCart();
-        showPosToast(`Item "${item.name}" dikembalikan ke harga dan jumlah standar.`);
+        showPosToast(`Item "${item.name}" dikembalikan ke harga dan diskon standar.`);
     }
 
     // Initialize Hold badge count on page load

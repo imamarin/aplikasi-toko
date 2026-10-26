@@ -66,7 +66,7 @@
                     <label class="form-label small fw-semibold">Harga Modal / Beli (HPP) <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-muted">Rp</span>
-                        <input type="number" step="1" min="0" name="cost_price" class="form-control @error('cost_price') is-invalid @enderror" value="{{ old('cost_price', 0) }}" required>
+                        <input type="text" inputmode="numeric" name="cost_price" class="form-control input-rupiah @error('cost_price') is-invalid @enderror" value="{{ old('cost_price', 0) }}" required>
                     </div>
                     @error('cost_price') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
@@ -75,9 +75,22 @@
                     <label class="form-label small fw-semibold">Harga Jual Konsumen <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-muted">Rp</span>
-                        <input type="number" step="1" min="0" name="selling_price" class="form-control @error('selling_price') is-invalid @enderror" value="{{ old('selling_price', 0) }}" required>
+                        <input type="text" inputmode="numeric" name="selling_price" class="form-control input-rupiah @error('selling_price') is-invalid @enderror" value="{{ old('selling_price', 0) }}" required>
                     </div>
                     @error('selling_price') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold">Diskon Promo Bawaan (Opsional)</label>
+                    <div class="input-group">
+                        <select name="discount_type" id="selectDiscountType" class="form-select @error('discount_type') is-invalid @enderror" style="max-width: 110px;" onchange="toggleDiscountFormat(this)">
+                            <option value="fixed" {{ old('discount_type', 'fixed') === 'fixed' ? 'selected' : '' }}>Rp</option>
+                            <option value="percentage" {{ old('discount_type') === 'percentage' ? 'selected' : '' }}>%</option>
+                        </select>
+                        <input type="text" inputmode="numeric" name="discount_value" id="inputDiscountValue" class="form-control input-rupiah @error('discount_value') is-invalid @enderror" value="{{ old('discount_value', 0) }}" placeholder="0">
+                    </div>
+                    <small class="text-muted" style="font-size: 0.75rem;">Diskon default per unit otomatis aktif di POS</small>
+                    @error('discount_value') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
 
                 <div class="col-12 col-md-6">
@@ -119,3 +132,25 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function toggleDiscountFormat(selectEl) {
+        const input = document.getElementById('inputDiscountValue');
+        if (!input) return;
+        if (selectEl.value === 'fixed') {
+            input.classList.add('input-rupiah');
+            attachRupiahFormatter(input);
+            if (input.value) input.value = formatRupiahString(input.value);
+        } else {
+            input.classList.remove('input-rupiah');
+            input._hasRupiahFormatter = false;
+            input.value = input.value.replace(/\./g, '');
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        const sel = document.getElementById('selectDiscountType');
+        if (sel) toggleDiscountFormat(sel);
+    });
+</script>
+@endpush

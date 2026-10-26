@@ -14,6 +14,13 @@ class CashTransactionController extends Controller
 
     public function store(Request $request)
     {
+        $rawAmount = $request->input('amount');
+        if (is_string($rawAmount)) {
+            $rawAmount = str_replace(['Rp', 'rp', ' ', '.'], '', $rawAmount);
+            $rawAmount = str_replace(',', '.', $rawAmount);
+            $request->merge(['amount' => $rawAmount]);
+        }
+
         $validated = $request->validate([
             'type' => ['required', 'string', 'in:in,out'],
             'category' => ['required', 'string', 'in:expense,capital,other'],

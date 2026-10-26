@@ -11,6 +11,15 @@ class UpdateProductRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'cost_price' => $this->cost_price !== null ? str_replace(['.', 'Rp', ' '], '', (string) $this->cost_price) : null,
+            'selling_price' => $this->selling_price !== null ? str_replace(['.', 'Rp', ' '], '', (string) $this->selling_price) : null,
+            'discount_value' => $this->discount_value !== null ? str_replace(['.', 'Rp', ' '], '', (string) $this->discount_value) : null,
+        ]);
+    }
+
     public function rules(): array
     {
         $productId = $this->route('product')->id;
@@ -25,6 +34,8 @@ class UpdateProductRequest extends FormRequest
             'selling_price' => ['required', 'numeric', 'min:0'],
             'min_stock' => ['required', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+            'discount_type' => ['nullable', 'string', 'in:fixed,percentage'],
+            'discount_value' => ['nullable', 'numeric', 'min:0'],
             'status' => ['nullable', 'boolean'],
         ];
     }

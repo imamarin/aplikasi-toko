@@ -106,7 +106,7 @@
         </tr>
         @if($sale->discount_amount > 0)
             <tr>
-                <td>Diskon:</td>
+                <td>Diskon Nota:</td>
                 <td class="text-end">-{{ number_format($sale->discount_amount, 0, ',', '.') }}</td>
             </tr>
         @endif

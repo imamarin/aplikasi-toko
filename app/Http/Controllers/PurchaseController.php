@@ -53,6 +53,25 @@ class PurchaseController extends Controller
 
     public function store(Request $request)
     {
+        $items = $request->input('items', []);
+        if (is_array($items)) {
+            foreach ($items as $k => $item) {
+                if (isset($item['cost_price']) && is_string($item['cost_price'])) {
+                    $items[$k]['cost_price'] = str_replace(['Rp', 'rp', ' ', '.'], '', $item['cost_price']);
+                }
+                if (isset($item['discount']) && is_string($item['discount'])) {
+                    $items[$k]['discount'] = str_replace(['Rp', 'rp', ' ', '.'], '', $item['discount']);
+                }
+            }
+            $request->merge(['items' => $items]);
+        }
+        if ($request->has('discount_amount') && is_string($request->discount_amount)) {
+            $request->merge(['discount_amount' => str_replace(['Rp', 'rp', ' ', '.'], '', $request->discount_amount)]);
+        }
+        if ($request->has('paid_amount') && is_string($request->paid_amount)) {
+            $request->merge(['paid_amount' => str_replace(['Rp', 'rp', ' ', '.'], '', $request->paid_amount)]);
+        }
+
         $validated = $request->validate([
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'purchase_date' => ['required', 'date'],

@@ -81,7 +81,7 @@
                     <label class="form-label small fw-semibold">Uang Fisik Nyata di Laci (Rp) <span class="text-danger">*</span></label>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text bg-light text-muted">Rp</span>
-                        <input type="number" step="1" min="0" name="closing_cash_actual" id="actualCashInput" class="form-control fw-bold fs-4 text-end" value="{{ $summary['expected_cash'] }}" required oninput="calcDifference()">
+                        <input type="text" inputmode="numeric" name="closing_cash_actual" id="actualCashInput" class="form-control fw-bold fs-4 text-end input-rupiah" value="{{ $summary['expected_cash'] }}" required oninput="calcDifference()">
                     </div>
                     <div class="d-flex gap-2 mt-2">
                         <button type="button" class="btn btn-outline-primary btn-sm rounded-pill" onclick="setCashPas()">
@@ -180,7 +180,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-semibold">Nominal (Rp) <span class="text-danger">*</span></label>
-                        <input type="number" step="1" min="1" name="amount" class="form-control" placeholder="Contoh: 25000" required>
+                        <input type="text" inputmode="numeric" name="amount" class="form-control input-rupiah" placeholder="Contoh: 25.000" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label small fw-semibold">Keterangan Lengkap <span class="text-danger">*</span></label>
@@ -251,12 +251,13 @@
 
     function setCashPas() {
         const actualInput = document.getElementById('actualCashInput');
-        actualInput.value = expectedCash;
+        actualInput.value = formatRupiahString(expectedCash);
         calcDifference();
     }
 
     function calcDifference() {
-        const actualVal = parseFloat(document.getElementById('actualCashInput').value) || 0;
+        const raw = (document.getElementById('actualCashInput').value || '').toString().replace(/\./g, '');
+        const actualVal = parseFloat(raw) || 0;
         const diff = actualVal - expectedCash;
         const badge = document.getElementById('diffBadgeText');
 
@@ -275,7 +276,8 @@
 
     function openConfirmCloseModal() {
         const actualInput = document.getElementById('actualCashInput');
-        if (actualInput.value === '' || isNaN(parseFloat(actualInput.value))) {
+        const cleanVal = (actualInput.value || '').toString().replace(/\./g, '');
+        if (cleanVal === '' || isNaN(parseFloat(cleanVal))) {
             alert('Silakan masukkan jumlah uang fisik nyata di laci!');
             actualInput.focus();
             return;

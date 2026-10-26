@@ -75,6 +75,8 @@ class ProductController extends Controller
         }
 
         $data['status'] = $request->boolean('status', true);
+        $data['discount_type'] = $data['discount_type'] ?? 'fixed';
+        $data['discount_value'] = (float) ($data['discount_value'] ?? 0);
         $initialStock = (int) ($data['stock'] ?? 0);
         $data['stock'] = 0; // We set to 0 and record via StockService for proper audit trail
 
@@ -123,6 +125,8 @@ class ProductController extends Controller
         }
 
         $data['status'] = $request->boolean('status', true);
+        $data['discount_type'] = $data['discount_type'] ?? 'fixed';
+        $data['discount_value'] = (float) ($data['discount_value'] ?? 0);
 
         // Notice: Stock is not updated directly via Product edit, but via Stock adjustment / opname!
         $product->update($data);

@@ -146,7 +146,7 @@
                         <label class="form-label small fw-semibold">Saldo Kas Modal Awal (Rp) <span class="text-danger">*</span></label>
                         <div class="input-group input-group-lg">
                             <span class="input-group-text bg-light text-muted">Rp</span>
-                            <input type="number" step="1" min="0" name="opening_cash" class="form-control fw-bold" placeholder="Contoh: 200000" value="200000" required autofocus>
+                            <input type="text" inputmode="numeric" name="opening_cash" class="form-control fw-bold input-rupiah" placeholder="Contoh: 200.000" value="200000" required autofocus>
                         </div>
                         <small class="text-muted" style="font-size: 0.75rem;">Uang kembalian pecahan receh di awal shift</small>
                     </div>

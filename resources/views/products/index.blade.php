@@ -99,8 +99,22 @@
                             <td class="text-end text-muted small">
                                 Rp {{ number_format($prod->cost_price, 0, ',', '.') }}
                             </td>
-                            <td class="text-end fw-bold text-primary">
-                                Rp {{ number_format($prod->selling_price, 0, ',', '.') }}
+                            <td class="text-end">
+                                @if($prod->has_discount)
+                                    <div class="fw-bold text-danger">
+                                        Rp {{ number_format($prod->final_price, 0, ',', '.') }}
+                                    </div>
+                                    <div class="text-decoration-line-through text-muted" style="font-size: 0.72rem;">
+                                        Rp {{ number_format($prod->selling_price, 0, ',', '.') }}
+                                    </div>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size: 0.65rem;">
+                                        Disc: {{ $prod->discount_type === 'percentage' ? rtrim(rtrim(number_format((float)$prod->discount_value, 2, ',', '.'), '0'), ',') . '%' : 'Rp ' . number_format($prod->discount_value, 0, ',', '.') }}
+                                    </span>
+                                @else
+                                    <div class="fw-bold text-primary">
+                                        Rp {{ number_format($prod->selling_price, 0, ',', '.') }}
+                                    </div>
+                                @endif
                             </td>
                             <td class="text-center">
                                 @if($prod->stock <= 0)

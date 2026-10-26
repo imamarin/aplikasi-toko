@@ -733,6 +733,104 @@
                 }
             });
         }
+
+        // Global Rupiah Currency Formatter for .input-rupiah
+        function formatRupiahString(value) {
+            if (value === null || value === undefined) return '';
+            let clean = value.toString().replace(/\D/g, '');
+            if (!clean) return '';
+            return new Intl.NumberFormat('id-ID').format(clean);
+        }
+
+        function parseRupiahNumber(value) {
+            if (!value) return 0;
+            let clean = value.toString().replace(/\D/g, '');
+            return clean ? parseInt(clean, 10) : 0;
+        }
+
+        function attachRupiahFormatter(input) {
+            if (input._hasRupiahFormatter) return;
+            input._hasRupiahFormatter = true;
+
+            input.setAttribute('inputmode', 'numeric');
+            input.setAttribute('autocomplete', 'off');
+
+            function applyFormat() {
+                const initialCursor = input.selectionStart || 0;
+                const oldVal = input.value || '';
+
+                const dotsBefore = (oldVal.slice(0, initialCursor).match(/\./g) || []).length;
+                const digitsBefore = initialCursor - dotsBefore;
+
+                const rawDigits = oldVal.replace(/\D/g, '');
+                if (!rawDigits) {
+                    input.value = '';
+                    return;
+                }
+
+                const sanitizedDigits = rawDigits.replace(/^0+(?=\d)/, '');
+                const formatted = new Intl.NumberFormat('id-ID').format(sanitizedDigits);
+                input.value = formatted;
+
+                let targetCursor = formatted.length;
+                let seenDigits = 0;
+                for (let i = 0; i < formatted.length; i++) {
+                    if (/\d/.test(formatted[i])) {
+                        seenDigits++;
+                    }
+                    if (seenDigits >= digitsBefore) {
+                        targetCursor = i + 1;
+                        break;
+                    }
+                }
+                input.setSelectionRange(targetCursor, targetCursor);
+            }
+
+            input.addEventListener('input', applyFormat);
+
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Backspace') {
+                    const pos = input.selectionStart;
+                    if (pos === input.selectionEnd && pos > 0 && input.value[pos - 1] === '.') {
+                        e.preventDefault();
+                        const before = input.value.slice(0, pos - 2);
+                        const after = input.value.slice(pos);
+                        input.value = before + after;
+                        input.setSelectionRange(pos - 2, pos - 2);
+                        applyFormat();
+                    }
+                }
+            });
+
+            if (input.value && input.value.trim() !== '') {
+                const rawNum = Math.round(parseFloat(input.value.toString().replace(/\./g, '').replace(',', '.'))) || 0;
+                input.value = new Intl.NumberFormat('id-ID').format(rawNum);
+            }
+        }
+
+        function initRupiahInputs(container = document) {
+            container.querySelectorAll('.input-rupiah').forEach(attachRupiahFormatter);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            initRupiahInputs();
+        });
+
+        document.addEventListener('submit', function (e) {
+            const form = e.target;
+            if (form && form.querySelectorAll) {
+                form.querySelectorAll('.input-rupiah').forEach(inp => {
+                    inp.value = inp.value.replace(/\./g, '');
+                });
+                setTimeout(() => {
+                    form.querySelectorAll('.input-rupiah').forEach(inp => {
+                        if (inp.value) {
+                            inp.value = formatRupiahString(inp.value);
+                        }
+                    });
+                }, 200);
+            }
+        }, true);
     </script>
     @stack('scripts')
 </body>

@@ -60,7 +60,7 @@
                     <label class="form-label small fw-semibold">Harga Modal / Beli (HPP) <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-muted">Rp</span>
-                        <input type="number" step="1" min="0" name="cost_price" class="form-control" value="{{ old('cost_price', $product->cost_price) }}" required>
+                        <input type="text" inputmode="numeric" name="cost_price" class="form-control input-rupiah" value="{{ old('cost_price', $product->cost_price) }}" required>
                     </div>
                 </div>
 
@@ -68,8 +68,20 @@
                     <label class="form-label small fw-semibold">Harga Jual Konsumen <span class="text-danger">*</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-light text-muted">Rp</span>
-                        <input type="number" step="1" min="0" name="selling_price" class="form-control" value="{{ old('selling_price', $product->selling_price) }}" required>
+                        <input type="text" inputmode="numeric" name="selling_price" class="form-control input-rupiah" value="{{ old('selling_price', $product->selling_price) }}" required>
                     </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold">Diskon Promo Bawaan (Opsional)</label>
+                    <div class="input-group">
+                        <select name="discount_type" id="selectDiscountType" class="form-select @error('discount_type') is-invalid @enderror" style="max-width: 110px;" onchange="toggleDiscountFormat(this)">
+                            <option value="fixed" {{ old('discount_type', $product->discount_type) === 'fixed' ? 'selected' : '' }}>Rp</option>
+                            <option value="percentage" {{ old('discount_type', $product->discount_type) === 'percentage' ? 'selected' : '' }}>%</option>
+                        </select>
+                        <input type="text" inputmode="numeric" name="discount_value" id="inputDiscountValue" class="form-control input-rupiah @error('discount_value') is-invalid @enderror" value="{{ old('discount_value', (float) $product->discount_value) }}" placeholder="0">
+                    </div>
+                    <small class="text-muted" style="font-size: 0.75rem;">Diskon default per unit otomatis aktif di POS</small>
                 </div>
 
                 <div class="col-12 col-md-6">
@@ -111,3 +123,25 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function toggleDiscountFormat(selectEl) {
+        const input = document.getElementById('inputDiscountValue');
+        if (!input) return;
+        if (selectEl.value === 'fixed') {
+            input.classList.add('input-rupiah');
+            attachRupiahFormatter(input);
+            if (input.value) input.value = formatRupiahString(input.value);
+        } else {
+            input.classList.remove('input-rupiah');
+            input._hasRupiahFormatter = false;
+            input.value = input.value.replace(/\./g, '');
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        const sel = document.getElementById('selectDiscountType');
+        if (sel) toggleDiscountFormat(sel);
+    });
+</script>
+@endpush
