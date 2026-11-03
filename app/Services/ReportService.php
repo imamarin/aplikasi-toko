@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CashTransaction;
 use App\Models\Product;
 use App\Models\Purchase;
+use App\Models\ReceivablePayment;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\SaleReturn;
@@ -116,7 +117,7 @@ class ReportService
         $totalCogs = 0;
         foreach ($sales as $sale) {
             foreach ($sale->details as $detail) {
-                $totalCogs += ((float) $detail->cost_price * (int) $detail->qty);
+                $totalCogs += ((float) $detail->cost_price * (float) $detail->qty);
             }
         }
 
@@ -540,6 +541,163 @@ class ReportService
                 'overall_turnover' => $overallTurnover,
                 'overall_transactions' => $overallTransactions,
                 'avg_store_basket_size' => $overallTransactions > 0 ? ($overallTurnover / $overallTransactions) : 0,
+            ],
+        ];
+    }
+
+    /**
+     * 7. Get Daily Income Report (Laporan Pendapatan Harian - Opsi B).
+     *
+     * Columns:
+     * - TANGGAL
+     * - PENJUALAN (Grand Total penjualan completed pada tanggal tsb)
+     * - PEMBAYARAN REAL KIOS (CASH + TF + QRIS yang benar-benar diterima di tanggal tsb)
+     * - CASH (Penjualan tunai + DP piutang tunai + Pelunasan piutang tunai pada tanggal tsb)
+     * - TF (Penjualan transfer/debit + DP piutang TF/debit + Pelunasan piutang TF/debit pada tanggal tsb)
+     * - QRIS (Penjualan QRIS + DP piutang QRIS + Pelunasan piutang QRIS pada tanggal tsb)
+     * - CREDIT (Nilai piutang awal pada tanggal transaksi: grand_total - initial_dp)
+     * - MODAL (HPP barang terjual pada tanggal tsb: SUM(qty * cost_price))
+     * - LABA KOTOR (PENJUALAN - MODAL)
+     */
+    public function getIncomeReport(Carbon $start, Carbon $end): array
+    {
+        $sales = Sale::with(['details', 'paymentAllocations.receivablePayment'])
+            ->where('status', 'completed')
+            ->whereBetween('transaction_date', [$start, $end])
+            ->orderBy('transaction_date', 'asc')
+            ->get();
+
+        // Subsequent receivable payments (cicilan/pelunasan di luar DP awal saat checkout)
+        $subsequentPayments = ReceivablePayment::query()
+            ->whereBetween('payment_date', [$start, $end])
+            ->where(function ($q) {
+                $q->whereNull('notes')
+                  ->orWhere('notes', 'not like', 'Uang Muka (DP)%');
+            })
+            ->orderBy('payment_date', 'asc')
+            ->get();
+
+        $dailyMap = [];
+
+        $initDay = function (string $dateKey) use (&$dailyMap) {
+            if (!isset($dailyMap[$dateKey])) {
+                $dailyMap[$dateKey] = [
+                    'date' => $dateKey,
+                    'total_transactions' => 0,
+                    'penjualan' => 0.0,
+                    'pembayaran_real_kios' => 0.0,
+                    'cash' => 0.0,
+                    'tf' => 0.0,
+                    'qris' => 0.0,
+                    'credit' => 0.0,
+                    'modal' => 0.0,
+                    'laba_kotor' => 0.0,
+                    'debt_repayment' => 0.0,
+                ];
+            }
+        };
+
+        $addPaymentByMethod = function (string $dateKey, string $method, float $amount) use (&$dailyMap) {
+            if ($amount <= 0) {
+                return;
+            }
+            $method = strtolower($method);
+            if ($method === 'cash') {
+                $dailyMap[$dateKey]['cash'] += $amount;
+            } elseif ($method === 'qris') {
+                $dailyMap[$dateKey]['qris'] += $amount;
+            } else {
+                // transfer, debit, credit_card, dll masuk ke kolom TF
+                $dailyMap[$dateKey]['tf'] += $amount;
+            }
+        };
+
+        foreach ($sales as $sale) {
+            $dateKey = $sale->transaction_date->format('Y-m-d');
+            $initDay($dateKey);
+
+            $grandTotal = (float) $sale->grand_total;
+            $saleModal = 0.0;
+            foreach ($sale->details as $detail) {
+                $saleModal += ((float) $detail->qty * (float) $detail->cost_price);
+            }
+
+            $dailyMap[$dateKey]['total_transactions'] += 1;
+            $dailyMap[$dateKey]['penjualan'] += $grandTotal;
+            $dailyMap[$dateKey]['modal'] += $saleModal;
+
+            if ($sale->payment_method === 'debt') {
+                // Hitung cicilan lanjutan yang pernah dialokasikan ke nota ini
+                $subsequentAllocated = 0.0;
+                foreach ($sale->paymentAllocations as $alloc) {
+                    $notes = (string) ($alloc->receivablePayment?->notes ?? '');
+                    if (!str_starts_with($notes, 'Uang Muka (DP)')) {
+                        $subsequentAllocated += (float) $alloc->amount;
+                    }
+                }
+
+                // DP awal murni saat transaksi berlangsung
+                $initialDp = max(0.0, min($grandTotal, (float) $sale->paid_amount - $subsequentAllocated));
+                $initialCredit = max(0.0, $grandTotal - $initialDp);
+
+                $dailyMap[$dateKey]['credit'] += $initialCredit;
+
+                if ($initialDp > 0) {
+                    $dpMethod = $sale->dp_payment_method ?? 'cash';
+                    $addPaymentByMethod($dateKey, $dpMethod, $initialDp);
+                }
+            } else {
+                $addPaymentByMethod($dateKey, $sale->payment_method ?? 'cash', $grandTotal);
+            }
+        }
+
+        // Tambahkan pelunasan/cicilan piutang lanjutan pada tanggal pembayaran diterima (Opsi B)
+        foreach ($subsequentPayments as $payment) {
+            $dateKey = $payment->payment_date->format('Y-m-d');
+            $initDay($dateKey);
+
+            $paidAmount = (float) $payment->total_paid;
+            $method = $payment->payment_method ?? 'cash';
+
+            $addPaymentByMethod($dateKey, $method, $paidAmount);
+            $dailyMap[$dateKey]['debt_repayment'] += $paidAmount;
+        }
+
+        ksort($dailyMap);
+
+        $records = collect();
+        foreach ($dailyMap as $dateKey => $row) {
+            $row['pembayaran_real_kios'] = $row['cash'] + $row['tf'] + $row['qris'];
+            $row['laba_kotor'] = $row['penjualan'] - $row['modal'];
+            $records->push((object) $row);
+        }
+
+        $totalPenjualan = (float) $records->sum('penjualan');
+        $totalPembayaranReal = (float) $records->sum('pembayaran_real_kios');
+        $totalCash = (float) $records->sum('cash');
+        $totalTf = (float) $records->sum('tf');
+        $totalQris = (float) $records->sum('qris');
+        $totalCredit = (float) $records->sum('credit');
+        $totalModal = (float) $records->sum('modal');
+        $totalLabaKotor = (float) $records->sum('laba_kotor');
+        $totalDebtRepayment = (float) $records->sum('debt_repayment');
+        $totalTransactions = (int) $records->sum('total_transactions');
+
+        return [
+            'records' => $records,
+            'summary' => [
+                'total_days' => $records->count(),
+                'total_transactions' => $totalTransactions,
+                'total_penjualan' => $totalPenjualan,
+                'total_pembayaran_real_kios' => $totalPembayaranReal,
+                'total_cash' => $totalCash,
+                'total_tf' => $totalTf,
+                'total_qris' => $totalQris,
+                'total_credit' => $totalCredit,
+                'total_modal' => $totalModal,
+                'total_laba_kotor' => $totalLabaKotor,
+                'total_debt_repayment' => $totalDebtRepayment,
+                'gross_margin_percentage' => $totalPenjualan > 0 ? ($totalLabaKotor / $totalPenjualan) * 100 : 0,
             ],
         ];
     }

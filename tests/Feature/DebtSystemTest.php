@@ -287,5 +287,124 @@ class DebtSystemTest extends TestCase
         $summaryAfterCash = $cashService->calculateShiftSummary($shift);
         $this->assertEquals(200000, $summaryAfterCash['expected_cash']);
     }
+
+    public function test_income_report_calculates_opsi_b_correctly(): void
+    {
+        $admin = User::where('username', 'admin')->first();
+        $customer = Customer::first();
+        $product = Product::first();
+        $product->update([
+            'stock' => 100,
+            'cost_price' => 60000,
+            'selling_price' => 100000,
+        ]);
+
+        // Open shift
+        $this->actingAs($admin)->post(route('cash-shifts.open'), [
+            'opening_cash' => '100000',
+            'notes' => 'Shift Test Income Report',
+        ]);
+
+        // 1. Direct Cash Sale: 2 pcs @ Rp 100.000 = Rp 200.000 (Modal: Rp 120.000, Laba Kotor: Rp 80.000)
+        $resDirect = $this->actingAs($admin)->postJson(route('pos.checkout'), [
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 2,
+                'selling_price' => 100000,
+                'subtotal' => 200000,
+                'discount' => 0,
+            ]],
+            'customer_id' => null,
+            'paid_amount' => 200000,
+            'payment_method' => 'cash',
+        ]);
+        $resDirect->assertStatus(200);
+        $saleDirect = Sale::find($resDirect->json('sale_id'));
+        $day1 = now()->subDays(2)->startOfDay()->addHours(10);
+        $saleDirect->update(['transaction_date' => $day1]);
+
+        // 2. Debt Sale on Day 1: 3 pcs @ Rp 100.000 = Rp 300.000 (Modal: Rp 180.000, Laba Kotor: Rp 120.000)
+        // With DP Rp 100.000 via QRIS -> Initial Credit on Day 1 = Rp 200.000
+        $resDebt = $this->actingAs($admin)->postJson(route('pos.checkout'), [
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 3,
+                'selling_price' => 100000,
+                'subtotal' => 300000,
+                'discount' => 0,
+            ]],
+            'customer_id' => $customer->id,
+            'paid_amount' => 100000,
+            'payment_method' => 'debt',
+            'dp_payment_method' => 'qris',
+        ]);
+        $resDebt->assertStatus(200);
+        $saleDebt = Sale::find($resDebt->json('sale_id'));
+        $saleDebt->update(['transaction_date' => $day1]);
+        // Update the initial DP payment date to Day 1 as well
+        $dpPayment = $saleDebt->paymentAllocations()->first()->receivablePayment;
+        $dpPayment->update(['payment_date' => $day1]);
+
+        // 3. Subsequent Debt Repayment on Day 2 via Transfer (TF): Rp 150.000
+        $day2 = now()->subDay()->startOfDay()->addHours(14);
+        $debtService = app(\App\Services\DebtService::class);
+        $repayment = $debtService->payCustomerReceivable($customer, [
+            'amount' => 150000,
+            'payment_method' => 'transfer',
+            'notes' => 'Cicilan via TF',
+        ], $admin->id);
+        $repayment->update(['payment_date' => $day2]);
+
+        // Verify ReportService::getIncomeReport (Opsi B)
+        $reportService = app(\App\Services\ReportService::class);
+        $report = $reportService->getIncomeReport($day1->copy()->startOfDay(), $day2->copy()->endOfDay());
+
+        $records = $report['records']->keyBy('date');
+        $day1Key = $day1->format('Y-m-d');
+        $day2Key = $day2->format('Y-m-d');
+
+        $this->assertTrue($records->has($day1Key));
+        $this->assertTrue($records->has($day2Key));
+
+        // Day 1 assertions:
+        // Penjualan = 200.000 + 300.000 = 500.000
+        // Cash = 200.000, QRIS = 100.000 (DP), TF = 0 -> Pembayaran Real Kios = 300.000
+        // Credit = 200.000 (remains historical even after Day 2 repayment!)
+        // Modal = 120.000 + 180.000 = 300.000, Laba Kotor = 200.000
+        $row1 = $records->get($day1Key);
+        $this->assertEquals(500000, $row1->penjualan);
+        $this->assertEquals(300000, $row1->pembayaran_real_kios);
+        $this->assertEquals(200000, $row1->cash);
+        $this->assertEquals(0, $row1->tf);
+        $this->assertEquals(100000, $row1->qris);
+        $this->assertEquals(200000, $row1->credit);
+        $this->assertEquals(300000, $row1->modal);
+        $this->assertEquals(200000, $row1->laba_kotor);
+
+        // Day 2 assertions (Opsi B):
+        // Penjualan = 0, TF = 150.000 (from debt repayment), Pembayaran Real Kios = 150.000
+        $row2 = $records->get($day2Key);
+        $this->assertEquals(0, $row2->penjualan);
+        $this->assertEquals(150000, $row2->pembayaran_real_kios);
+        $this->assertEquals(150000, $row2->tf);
+        $this->assertEquals(150000, $row2->debt_repayment);
+
+        // Verify HTTP endpoints for Web & PDF
+        $resWeb = $this->actingAs($admin)->get(route('reports.income', [
+            'period' => 'custom',
+            'start_date' => $day1->format('Y-m-d'),
+            'end_date' => $day2->format('Y-m-d'),
+        ]));
+        $resWeb->assertStatus(200);
+        $resWeb->assertSee('PENDAPATAN');
+        $resWeb->assertSee('PEMBAYARAN');
+
+        $resPdf = $this->actingAs($admin)->get(route('reports.income.pdf', [
+            'period' => 'custom',
+            'start_date' => $day1->format('Y-m-d'),
+            'end_date' => $day2->format('Y-m-d'),
+        ]));
+        $resPdf->assertStatus(200);
+    }
 }
 

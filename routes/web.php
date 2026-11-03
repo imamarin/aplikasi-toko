@@ -141,6 +141,10 @@ Route::middleware('auth')->group(function () {
         // 6. Laporan Penjualan per Kasir
         Route::get('/sales-by-cashier', [ReportController::class, 'salesByCashier'])->name('sales-by-cashier');
         Route::get('/sales-by-cashier/pdf', [ReportController::class, 'exportSalesByCashierPdf'])->name('sales-by-cashier.pdf');
+
+        // 7. Laporan Pendapatan Harian
+        Route::get('/income', [ReportController::class, 'income'])->name('income');
+        Route::get('/income/pdf', [ReportController::class, 'exportIncomePdf'])->name('income.pdf');
     });
 
     // Pengaturan Toko & Manajemen Pengguna (Admin & Super Admin)

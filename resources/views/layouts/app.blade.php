@@ -517,6 +517,9 @@
             <!-- Nav: Laporan -->
             @if(auth()->user()->hasRole(['super-admin', 'admin', 'owner']))
             <div class="sidebar-heading">Laporan & Audit</div>
+            <a href="{{ route('reports.income') }}" class="nav-link-custom {{ request()->routeIs('reports.income*') ? 'active' : '' }}">
+                <i class="bi bi-table"></i> Laporan Pendapatan
+            </a>
             <a href="{{ route('reports.sales') }}" class="nav-link-custom {{ request()->routeIs('reports.sales') ? 'active' : '' }}">
                 <i class="bi bi-graph-up"></i> Penjualan Harian
             </a>

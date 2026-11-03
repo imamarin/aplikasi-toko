@@ -531,6 +531,46 @@ class ReportController extends Controller
         return $request->has('stream') ? $pdf->stream($fileName) : $pdf->download($fileName);
     }
 
+    /**
+     * 7. Laporan Pendapatan Harian (Penjualan, Pembayaran Real Kios, Cash/TF/QRIS/Credit, Modal, Laba Kotor)
+     */
+    public function income(Request $request)
+    {
+        $period = $request->input('period', 'this_month');
+        [$start, $end] = $this->reportService->resolveDateRange($period, $request->input('start_date'), $request->input('end_date'));
+
+        $data = $this->reportService->getIncomeReport($start, $end);
+
+        return view('reports.income', [
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'period' => $period,
+            'start' => $start,
+            'end' => $end,
+        ]);
+    }
+
+    public function exportIncomePdf(Request $request)
+    {
+        $period = $request->input('period', 'this_month');
+        [$start, $end] = $this->reportService->resolveDateRange($period, $request->input('start_date'), $request->input('end_date'));
+
+        $data = $this->reportService->getIncomeReport($start, $end);
+        $settings = $this->getStoreSettings();
+
+        $pdf = Pdf::loadView('reports.income_pdf', [
+            'records' => $data['records'],
+            'summary' => $data['summary'],
+            'startDate' => $start,
+            'endDate' => $end,
+            'settings' => $settings,
+        ])->setPaper('a4', 'landscape');
+
+        $fileName = "Laporan-Pendapatan-{$start->format('Ymd')}-{$end->format('Ymd')}.pdf";
+
+        return $request->has('stream') ? $pdf->stream($fileName) : $pdf->download($fileName);
+    }
+
     private function getStoreSettings(): array
     {
         return [
