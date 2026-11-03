@@ -223,5 +223,69 @@ class DebtSystemTest extends TestCase
             ->assertSee($product->name)
             ->assertSee('Rincian Transaksi Penjualan Selama Shift');
     }
+
+    public function test_pos_debt_checkout_with_dp_separates_cash_and_non_cash_dp_methods(): void
+    {
+        $admin = User::where('username', 'admin')->first();
+        $customer = Customer::first();
+        $product = Product::first();
+        $product->update(['stock' => 100]);
+
+        $this->actingAs($admin)->post(route('cash-shifts.open'), [
+            'opening_cash' => '100000',
+            'notes' => 'Shift Test DP',
+        ]);
+
+        $shift = $admin->fresh()->currentOpenShift;
+        $cashService = app(\App\Services\CashService::class);
+
+        // 1. Debt Rp 500.000 with DP Rp 150.000 via QRIS (Non-Cash)
+        $resQris = $this->actingAs($admin)->postJson(route('pos.checkout'), [
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'selling_price' => 500000,
+                'subtotal' => 500000,
+                'discount' => 0,
+            ]],
+            'customer_id' => $customer->id,
+            'paid_amount' => 150000,
+            'payment_method' => 'debt',
+            'dp_payment_method' => 'qris',
+        ]);
+        $resQris->assertStatus(200);
+        $saleQris = Sale::find($resQris->json('sale_id'));
+        $this->assertEquals('partial', $saleQris->payment_status);
+        $this->assertEquals('qris', $saleQris->dp_payment_method);
+        $this->assertEquals(350000, $saleQris->remaining_debt);
+        $this->assertEquals(1, $saleQris->paymentAllocations()->count());
+
+        // Expected physical cash in drawer should still be 100.000 (not 250.000), while non_cash_sales is 150.000
+        $summaryAfterQris = $cashService->calculateShiftSummary($shift);
+        $this->assertEquals(100000, $summaryAfterQris['expected_cash']);
+        $this->assertEquals(150000, $summaryAfterQris['non_cash_sales']);
+
+        // 2. Debt Rp 300.000 with DP Rp 100.000 via Cash (Tunai)
+        $resCash = $this->actingAs($admin)->postJson(route('pos.checkout'), [
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'selling_price' => 300000,
+                'subtotal' => 300000,
+                'discount' => 0,
+            ]],
+            'customer_id' => $customer->id,
+            'paid_amount' => 100000,
+            'payment_method' => 'debt',
+            'dp_payment_method' => 'cash',
+        ]);
+        $resCash->assertStatus(200);
+        $saleCash = Sale::find($resCash->json('sale_id'));
+        $this->assertEquals('cash', $saleCash->dp_payment_method);
+
+        // Expected physical cash in drawer should now increase by 100.000 -> 200.000
+        $summaryAfterCash = $cashService->calculateShiftSummary($shift);
+        $this->assertEquals(200000, $summaryAfterCash['expected_cash']);
+    }
 }
 

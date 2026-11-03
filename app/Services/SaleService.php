@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\CashShift;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\ReceivablePayment;
+use App\Models\ReceivablePaymentAllocation;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\Setting;
@@ -146,6 +148,7 @@ class SaleService
             $paymentMethod = $data['payment_method'] ?? 'cash';
             $paidAmount = isset($data['paid_amount']) ? (float) $data['paid_amount'] : $grandTotal;
             $customerId = !empty($data['customer_id']) ? (int) $data['customer_id'] : null;
+            $dpPaymentMethod = null;
 
             if ($paymentMethod === 'debt') {
                 if (!$customerId) {
@@ -160,10 +163,12 @@ class SaleService
                 } elseif ($paidAmount < $grandTotal) {
                     $paymentStatus = 'partial';
                     $changeAmount = 0;
+                    $dpPaymentMethod = $data['dp_payment_method'] ?? 'cash';
                 } else {
                     $paymentStatus = 'paid';
                     $changeAmount = $paidAmount - $grandTotal;
                     $paidAmount = $grandTotal;
+                    $dpPaymentMethod = $data['dp_payment_method'] ?? 'cash';
                 }
             } else {
                 if ($paymentMethod === 'cash' && $paidAmount < $grandTotal) {
@@ -191,6 +196,7 @@ class SaleService
                 'paid_amount' => $paidAmount,
                 'change_amount' => $changeAmount,
                 'payment_method' => $paymentMethod,
+                'dp_payment_method' => $dpPaymentMethod,
                 'payment_status' => $paymentStatus,
                 'due_date' => !empty($data['due_date']) ? Carbon::parse($data['due_date']) : null,
                 'status' => 'completed',
@@ -238,16 +244,47 @@ class SaleService
                 );
             } elseif ($paymentMethod === 'debt' && $paidAmount > 0) {
                 $dpAmount = min($paidAmount, $grandTotal);
-                $this->cashService->recordTransaction(
-                    cashShiftId: $currentShift?->id,
-                    userId: $userId,
-                    type: 'in',
-                    category: 'receivable_dp',
-                    amount: $dpAmount,
-                    refType: Sale::class,
-                    refId: $sale->id,
-                    description: "DP Penjualan Tempo #{$invoiceNumber}"
-                );
+                $effectiveDpMethod = $dpPaymentMethod ?? 'cash';
+
+                // Record DP as initial ReceivablePayment & Allocation so payment history is complete
+                $dateStr = Carbon::now()->format('Ymd');
+                $pmtCount = ReceivablePayment::whereDate('created_at', Carbon::today())->count() + 1;
+                $pmtNumber = 'RCV-' . $dateStr . '-' . str_pad((string) $pmtCount, 4, '0', STR_PAD_LEFT);
+                while (ReceivablePayment::where('payment_number', $pmtNumber)->exists()) {
+                    $pmtCount++;
+                    $pmtNumber = 'RCV-' . $dateStr . '-' . str_pad((string) $pmtCount, 4, '0', STR_PAD_LEFT);
+                }
+
+                $dpPayment = ReceivablePayment::create([
+                    'payment_number' => $pmtNumber,
+                    'customer_id' => $customerId,
+                    'user_id' => $userId,
+                    'cash_shift_id' => $currentShift?->id,
+                    'payment_date' => $transactionDate,
+                    'total_paid' => $dpAmount,
+                    'payment_method' => $effectiveDpMethod,
+                    'notes' => "Uang Muka (DP) saat transaksi Nota #{$invoiceNumber}",
+                ]);
+
+                ReceivablePaymentAllocation::create([
+                    'receivable_payment_id' => $dpPayment->id,
+                    'sale_id' => $sale->id,
+                    'amount' => $dpAmount,
+                ]);
+
+                // Only record physical cash drawer transaction if DP was paid in cash
+                if ($effectiveDpMethod === 'cash') {
+                    $this->cashService->recordTransaction(
+                        cashShiftId: $currentShift?->id,
+                        userId: $userId,
+                        type: 'in',
+                        category: 'receivable_dp',
+                        amount: $dpAmount,
+                        refType: Sale::class,
+                        refId: $sale->id,
+                        description: "DP Tunai Penjualan Tempo #{$invoiceNumber}"
+                    );
+                }
             }
 
             // Reward Customer Points (e.g. 1 point for every 10.000 spent)

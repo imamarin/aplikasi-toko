@@ -51,11 +51,17 @@ class CashService
             ->where('status', 'completed')
             ->sum('change_amount');
 
-        // Non cash sales (Transfer, QRIS, Debit, dll.)
-        $nonCashSales = (float) Sale::where('cash_shift_id', $shift->id)
+        // Non cash sales (Transfer, QRIS, Debit, dll.) + Non-cash DP/Receivable payments during shift
+        $nonCashDirectSales = (float) Sale::where('cash_shift_id', $shift->id)
             ->whereNotIn('payment_method', ['cash', 'debt'])
             ->where('status', 'completed')
             ->sum('grand_total');
+
+        $nonCashReceivablePayments = (float) \App\Models\ReceivablePayment::where('cash_shift_id', $shift->id)
+            ->where('payment_method', '!=', 'cash')
+            ->sum('total_paid');
+
+        $nonCashSales = $nonCashDirectSales + $nonCashReceivablePayments;
 
         // 3. Cash In transactions (modal tambah, dll.)
         $cashIn = (float) CashTransaction::where('cash_shift_id', $shift->id)

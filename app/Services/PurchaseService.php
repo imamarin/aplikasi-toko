@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\CashShift;
+use App\Models\PayablePayment;
+use App\Models\PayablePaymentAllocation;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseDetail;
@@ -86,6 +88,7 @@ class PurchaseService
             $grandTotal = max(0, $subtotal - $overallDiscount);
             $paidAmount = (float) ($data['paid_amount'] ?? $grandTotal);
             $paymentMethod = $data['payment_method'] ?? 'cash';
+            $dpPaymentMethod = ($paymentMethod === 'credit' && $paidAmount > 0) ? ($data['dp_payment_method'] ?? 'cash') : null;
 
             $paymentStatus = 'paid';
             if ($paidAmount <= 0) {
@@ -104,6 +107,7 @@ class PurchaseService
                 'grand_total' => $grandTotal,
                 'paid_amount' => $paidAmount,
                 'payment_method' => $paymentMethod,
+                'dp_payment_method' => $dpPaymentMethod,
                 'payment_status' => $paymentStatus,
                 'due_date' => !empty($data['due_date']) ? Carbon::parse($data['due_date']) : null,
                 'notes' => $data['notes'] ?? null,
@@ -137,8 +141,8 @@ class PurchaseService
             }
 
             // If cash was paid and there is an active shift or user cashflow
+            $currentShift = CashShift::where('user_id', $userId)->where('status', 'open')->first();
             if ($paidAmount > 0 && $paymentMethod === 'cash') {
-                $currentShift = CashShift::where('user_id', $userId)->where('status', 'open')->first();
                 $this->cashService->recordTransaction(
                     cashShiftId: $currentShift?->id,
                     userId: $userId,
@@ -149,6 +153,47 @@ class PurchaseService
                     refId: $purchase->id,
                     description: "Pembelian Barang ke Supplier Tunai #{$purchaseNumber}"
                 );
+            } elseif ($paidAmount > 0 && $paymentMethod === 'credit') {
+                $dpAmount = min($paidAmount, $grandTotal);
+                $effectiveDpMethod = $dpPaymentMethod ?? 'cash';
+
+                $dateStr = Carbon::now()->format('Ymd');
+                $pmtCount = PayablePayment::whereDate('created_at', Carbon::today())->count() + 1;
+                $pmtNumber = 'PAY-' . $dateStr . '-' . str_pad((string) $pmtCount, 4, '0', STR_PAD_LEFT);
+                while (PayablePayment::where('payment_number', $pmtNumber)->exists()) {
+                    $pmtCount++;
+                    $pmtNumber = 'PAY-' . $dateStr . '-' . str_pad((string) $pmtCount, 4, '0', STR_PAD_LEFT);
+                }
+
+                $dpPayment = PayablePayment::create([
+                    'payment_number' => $pmtNumber,
+                    'supplier_id' => $purchase->supplier_id,
+                    'user_id' => $userId,
+                    'cash_shift_id' => $currentShift?->id,
+                    'payment_date' => $purchaseDate,
+                    'total_paid' => $dpAmount,
+                    'payment_method' => $effectiveDpMethod,
+                    'notes' => "Uang Muka (DP) saat pembelian PO #{$purchaseNumber}",
+                ]);
+
+                PayablePaymentAllocation::create([
+                    'payable_payment_id' => $dpPayment->id,
+                    'purchase_id' => $purchase->id,
+                    'amount' => $dpAmount,
+                ]);
+
+                if ($effectiveDpMethod === 'cash') {
+                    $this->cashService->recordTransaction(
+                        cashShiftId: $currentShift?->id,
+                        userId: $userId,
+                        type: 'out',
+                        category: 'purchase_dp',
+                        amount: $dpAmount,
+                        refType: Purchase::class,
+                        refId: $purchase->id,
+                        description: "DP Tunai Pembelian PO #{$purchaseNumber}"
+                    );
+                }
             }
 
             return $purchase->load(['details.product', 'supplier', 'user']);

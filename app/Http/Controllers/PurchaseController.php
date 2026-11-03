@@ -83,6 +83,7 @@ class PurchaseController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'paid_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['required', 'string', 'in:cash,transfer,credit'],
+            'dp_payment_method' => ['nullable', 'string', 'in:cash,transfer'],
             'due_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
         ], [

@@ -19,6 +19,7 @@ class Purchase extends Model
         'grand_total',
         'paid_amount',
         'payment_method',
+        'dp_payment_method',
         'payment_status',
         'due_date',
         'notes',

@@ -47,12 +47,20 @@
                     </select>
                 </div>
 
-                <div class="col-12 col-md-6" id="dueDateContainer" style="display: none;">
+                <div class="col-12 col-md-4" id="dueDateContainer" style="display: none;">
                     <label class="form-label small fw-semibold">Tanggal Jatuh Tempo Pembayaran</label>
                     <input type="date" name="due_date" class="form-control" value="{{ old('due_date') }}">
                 </div>
 
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4" id="dpPaymentMethodPoContainer" style="display: none;">
+                    <label class="form-label small fw-semibold">Metode Bayar Uang Muka (Jika Ada DP)</label>
+                    <select name="dp_payment_method" class="form-select">
+                        <option value="transfer" {{ old('dp_payment_method') === 'transfer' ? 'selected' : '' }}>Transfer Bank</option>
+                        <option value="cash" {{ old('dp_payment_method') === 'cash' ? 'selected' : '' }}>Tunai (Keluar dari Kas Laci)</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4">
                     <label class="form-label small fw-semibold">Catatan Transaksi / No. Surat Jalan</label>
                     <input type="text" name="notes" class="form-control" value="{{ old('notes') }}" placeholder="Nomor faktur supplier, keterangan barang...">
                 </div>
@@ -172,6 +180,10 @@
 
     function toggleDueDate(method) {
         document.getElementById('dueDateContainer').style.display = method === 'credit' ? 'block' : 'none';
+        const dpContainer = document.getElementById('dpPaymentMethodPoContainer');
+        if (dpContainer) {
+            dpContainer.style.display = method === 'credit' ? 'block' : 'none';
+        }
         if (method === 'credit') {
             document.getElementById('inputPaidAmount').value = 0;
         } else {

@@ -83,6 +83,7 @@ class PosController extends Controller
             'shipping_cost' => ['nullable'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
             'payment_method' => ['required', 'string', 'in:cash,transfer,qris,debit,credit,debt'],
+            'dp_payment_method' => ['nullable', 'string', 'in:cash,transfer,qris,debit'],
             'due_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
         ], [

@@ -47,6 +47,9 @@
                 <small class="text-muted d-block">Metode & Status Bayar</small>
                 <div class="mt-1 d-flex align-items-center gap-1 flex-wrap">
                     <span class="badge bg-secondary text-uppercase px-2 py-1">{{ $sale->payment_method === 'debt' ? 'Hutang/Tempo' : $sale->payment_method }}</span>
+                    @if($sale->payment_method === 'debt' && $sale->dp_payment_method)
+                        <span class="badge bg-info-subtle text-info border border-info-subtle text-uppercase">DP: {{ $sale->dp_payment_method }}</span>
+                    @endif
                     @if($sale->payment_status === 'paid')
                         <span class="badge bg-success-subtle text-success">Lunas</span>
                     @elseif($sale->payment_status === 'partial')

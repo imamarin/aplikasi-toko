@@ -127,7 +127,15 @@
             <td class="text-end">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</td>
         </tr>
         <tr>
-            <td>Bayar ({{ $sale->payment_method === 'debt' ? 'TEMPO/DP' : strtoupper($sale->payment_method) }}):</td>
+            @if($sale->payment_method === 'debt')
+                @if($sale->paid_amount > 0)
+                    <td>DP ({{ strtoupper($sale->dp_payment_method ?? 'CASH') }}):</td>
+                @else
+                    <td>Bayar (TEMPO):</td>
+                @endif
+            @else
+                <td>Bayar ({{ strtoupper($sale->payment_method) }}):</td>
+            @endif
             <td class="text-end">{{ number_format($sale->paid_amount, 0, ',', '.') }}</td>
         </tr>
         @if($sale->remaining_debt > 0)

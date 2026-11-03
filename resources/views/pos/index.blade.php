@@ -470,6 +470,39 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Pilihan Metode Pembayaran DP (Muncul otomatis jika Uang Dibayarkan > 0) -->
+                            <div id="dpPaymentMethodContainer" class="mt-2 pt-2 border-top border-danger-subtle d-none">
+                                <label class="form-label small fw-semibold text-dark mb-1">
+                                    <i class="bi bi-wallet2 text-primary me-1"></i> Metode Pembayaran Uang Muka (DP):
+                                </label>
+                                <div class="row g-1">
+                                    <div class="col-3">
+                                        <input type="radio" class="btn-check" name="dp_payment_method" id="dpMethodCash" value="cash" checked onchange="calcChange()">
+                                        <label class="btn btn-outline-success btn-sm w-100 fw-semibold" for="dpMethodCash">
+                                            <i class="bi bi-cash"></i> Tunai
+                                        </label>
+                                    </div>
+                                    <div class="col-3">
+                                        <input type="radio" class="btn-check" name="dp_payment_method" id="dpMethodQris" value="qris" onchange="calcChange()">
+                                        <label class="btn btn-outline-primary btn-sm w-100 fw-semibold" for="dpMethodQris">
+                                            <i class="bi bi-qr-code"></i> QRIS
+                                        </label>
+                                    </div>
+                                    <div class="col-3">
+                                        <input type="radio" class="btn-check" name="dp_payment_method" id="dpMethodTransfer" value="transfer" onchange="calcChange()">
+                                        <label class="btn btn-outline-primary btn-sm w-100 fw-semibold" for="dpMethodTransfer">
+                                            <i class="bi bi-bank"></i> Transfer
+                                        </label>
+                                    </div>
+                                    <div class="col-3">
+                                        <input type="radio" class="btn-check" name="dp_payment_method" id="dpMethodDebit" value="debit" onchange="calcChange()">
+                                        <label class="btn btn-outline-primary btn-sm w-100 fw-semibold" for="dpMethodDebit">
+                                            <i class="bi bi-credit-card"></i> Debit
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Ongkos Kirim (Opsional) -->
@@ -1589,6 +1622,14 @@
 
         if (selectedMethod === 'debt') {
             updateDebtCustomerBadge();
+            const dpMethodContainer = document.getElementById('dpPaymentMethodContainer');
+            if (dpMethodContainer) {
+                if (paid > 0) {
+                    dpMethodContainer.classList.remove('d-none');
+                } else {
+                    dpMethodContainer.classList.add('d-none');
+                }
+            }
             if (change < 0) {
                 if (changeLabel) changeLabel.innerText = 'Sisa Hutang:';
                 document.getElementById('modalChangeAmount').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.abs(change));
@@ -1600,6 +1641,8 @@
             }
             btnSubmit.disabled = false;
         } else {
+            const dpMethodContainer = document.getElementById('dpPaymentMethodContainer');
+            if (dpMethodContainer) dpMethodContainer.classList.add('d-none');
             if (changeLabel) changeLabel.innerText = 'Kembalian:';
             document.getElementById('modalChangeAmount').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.max(0, change));
 
@@ -1650,6 +1693,9 @@
             shipping_cost: shippingCost,
             paid_amount: paidAmount,
             payment_method: paymentMethod,
+            dp_payment_method: (paymentMethod === 'debt' && paidAmount > 0)
+                ? (document.querySelector('input[name="dp_payment_method"]:checked')?.value || 'cash')
+                : null,
             due_date: paymentMethod === 'debt' ? (document.getElementById('inputDueDate')?.value || null) : null,
             notes: document.getElementById('inputSaleNotes').value
         };

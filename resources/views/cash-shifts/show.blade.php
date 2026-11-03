@@ -309,6 +309,11 @@
                                 <span class="badge bg-secondary-subtle text-secondary text-uppercase">
                                     {{ $sale->payment_method === 'debt' ? 'TEMPO' : $sale->payment_method }}
                                 </span>
+                                @if($sale->payment_method === 'debt' && $sale->dp_payment_method)
+                                    <div class="mt-1">
+                                        <span class="badge bg-info-subtle text-info text-uppercase">DP: {{ $sale->dp_payment_method }}</span>
+                                    </div>
+                                @endif
                                 <div class="mt-1">
                                     @if($sale->payment_status === 'paid')
                                         <span class="badge bg-success-subtle text-success">Lunas</span>
