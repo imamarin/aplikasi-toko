@@ -89,6 +89,26 @@
                         </div>
                     </div>
                 </div>
+
+                @if($product->price_silver || $product->price_gold || $product->price_platinum)
+                    <div class="p-3 bg-light rounded-3 border mt-3">
+                        <small class="fw-bold text-dark d-block mb-2"><i class="bi bi-award-fill text-warning me-1"></i> Harga Khusus Member:</small>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <span class="badge bg-secondary-subtle text-secondary mb-1">Silver</span>
+                                <div class="fw-bold text-dark small">{{ $product->price_silver > 0 ? 'Rp ' . number_format($product->price_silver, 0, ',', '.') : 'Harga Normal' }}</div>
+                            </div>
+                            <div class="col-4">
+                                <span class="badge bg-warning-subtle text-warning mb-1">Gold</span>
+                                <div class="fw-bold text-dark small">{{ $product->price_gold > 0 ? 'Rp ' . number_format($product->price_gold, 0, ',', '.') : 'Harga Normal' }}</div>
+                            </div>
+                            <div class="col-4">
+                                <span class="badge bg-info-subtle text-info mb-1">Platinum</span>
+                                <div class="fw-bold text-dark small">{{ $product->price_platinum > 0 ? 'Rp ' . number_format($product->price_platinum, 0, ',', '.') : 'Harga Normal' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     </div>

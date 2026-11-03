@@ -115,6 +115,13 @@
                                         Rp {{ number_format($prod->selling_price, 0, ',', '.') }}
                                     </div>
                                 @endif
+                                @if($prod->price_silver || $prod->price_gold || $prod->price_platinum)
+                                    <div class="mt-1">
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.65rem;" title="Memiliki Harga Khusus Member">
+                                            <i class="bi bi-award-fill me-1"></i>Tier Member
+                                        </span>
+                                    </div>
+                                @endif
                             </td>
                             <td class="text-center">
                                 @if($prod->stock <= 0)

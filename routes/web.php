@@ -4,11 +4,13 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PayableController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\ReceivableController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
@@ -82,8 +84,25 @@ Route::middleware('auth')->group(function () {
     Route::resource('purchases', PurchaseController::class);
     Route::resource('suppliers', SupplierController::class);
 
+    // Hutang Supplier (Accounts Payable)
+    Route::prefix('payables')->name('payables.')->group(function () {
+        Route::get('/', [PayableController::class, 'index'])->name('index');
+        Route::get('/payments/{payment}/receipt', [PayableController::class, 'printPaymentReceipt'])->name('payment.receipt');
+        Route::get('/{supplier}', [PayableController::class, 'show'])->name('show');
+        Route::post('/{supplier}/pay', [PayableController::class, 'storePayment'])->name('pay');
+    });
+
     // Pelanggan & Retur
     Route::resource('customers', CustomerController::class);
+
+    // Piutang Pelanggan (Accounts Receivable)
+    Route::prefix('receivables')->name('receivables.')->group(function () {
+        Route::get('/', [ReceivableController::class, 'index'])->name('index');
+        Route::get('/payments/{payment}/receipt', [ReceivableController::class, 'printPaymentReceipt'])->name('payment.receipt');
+        Route::get('/{customer}', [ReceivableController::class, 'show'])->name('show');
+        Route::post('/{customer}/pay', [ReceivableController::class, 'storePayment'])->name('pay');
+    });
+
     Route::resource('returns/sales', SaleReturnController::class)->names('returns.sales');
     Route::resource('returns/purchases', PurchaseReturnController::class)->names('returns.purchases');
 

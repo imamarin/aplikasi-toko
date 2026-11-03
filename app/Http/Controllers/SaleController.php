@@ -40,7 +40,7 @@ class SaleController extends Controller
 
     public function show(Sale $sale)
     {
-        $sale->load(['user', 'customer', 'details.product.unit', 'returns.details.product']);
+        $sale->load(['user', 'customer', 'details.product.unit', 'returns.details.product', 'paymentAllocations.receivablePayment.user']);
         return view('sales.show', compact('sale'));
     }
 

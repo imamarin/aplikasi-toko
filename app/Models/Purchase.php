@@ -55,4 +55,14 @@ class Purchase extends Model
     {
         return $this->hasMany(PurchaseReturn::class);
     }
+
+    public function paymentAllocations()
+    {
+        return $this->hasMany(PayablePaymentAllocation::class);
+    }
+
+    public function getRemainingDebtAttribute(): float
+    {
+        return max(0, (float) $this->grand_total - (float) $this->paid_amount);
+    }
 }

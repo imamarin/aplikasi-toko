@@ -82,7 +82,8 @@ class PosController extends Controller
             'tax_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'shipping_cost' => ['nullable'],
             'paid_amount' => ['required', 'numeric', 'min:0'],
-            'payment_method' => ['required', 'string', 'in:cash,transfer,qris,debit,credit'],
+            'payment_method' => ['required', 'string', 'in:cash,transfer,qris,debit,credit,debt'],
+            'due_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string'],
         ], [
             'items.required' => 'Keranjang transaksi masih kosong.',
@@ -99,6 +100,8 @@ class PosController extends Controller
                 'sale_id' => $sale->id,
                 'invoice_number' => $sale->invoice_number,
                 'change_amount' => $sale->change_amount,
+                'remaining_debt' => $sale->remaining_debt,
+                'payment_status' => $sale->payment_status,
                 'receipt_url' => route('sales.receipt', $sale->id),
             ]);
         } catch (Exception $e) {

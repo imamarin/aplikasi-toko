@@ -53,7 +53,7 @@ class CashService
 
         // Non cash sales (Transfer, QRIS, Debit, dll.)
         $nonCashSales = (float) Sale::where('cash_shift_id', $shift->id)
-            ->where('payment_method', '!=', 'cash')
+            ->whereNotIn('payment_method', ['cash', 'debt'])
             ->where('status', 'completed')
             ->sum('grand_total');
 

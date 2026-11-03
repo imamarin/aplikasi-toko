@@ -24,6 +24,9 @@ class Product extends Model
         'status',
         'discount_type',
         'discount_value',
+        'price_silver',
+        'price_gold',
+        'price_platinum',
     ];
 
     protected $appends = [
@@ -37,11 +40,29 @@ class Product extends Model
         return [
             'cost_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
+            'price_silver' => 'decimal:2',
+            'price_gold' => 'decimal:2',
+            'price_platinum' => 'decimal:2',
             'discount_value' => 'decimal:2',
             'stock' => 'float',
             'min_stock' => 'float',
             'status' => 'boolean',
         ];
+    }
+
+    public function getPriceForLevel(?string $level): float
+    {
+        $normalized = strtolower(trim((string) $level));
+        if ($normalized === 'silver' && !is_null($this->price_silver) && (float) $this->price_silver > 0) {
+            return (float) $this->price_silver;
+        }
+        if ($normalized === 'gold' && !is_null($this->price_gold) && (float) $this->price_gold > 0) {
+            return (float) $this->price_gold;
+        }
+        if ($normalized === 'platinum' && !is_null($this->price_platinum) && (float) $this->price_platinum > 0) {
+            return (float) $this->price_platinum;
+        }
+        return (float) $this->selling_price;
     }
 
     public function getHasDiscountAttribute(): bool

@@ -102,7 +102,7 @@ class PurchaseController extends Controller
 
     public function show(Purchase $purchase)
     {
-        $purchase->load(['supplier', 'user', 'details.product.unit', 'returns.details.product']);
+        $purchase->load(['supplier', 'user', 'details.product.unit', 'returns.details.product', 'paymentAllocations.payablePayment.user']);
         return view('purchases.show', compact('purchase'));
     }
 }

@@ -80,6 +80,51 @@
                     @error('selling_price') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
 
+                <!-- Harga Khusus Member Tier -->
+                <div class="col-12">
+                    <div class="p-3 rounded-3 bg-light border">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-award-fill text-warning fs-5"></i>
+                            <div>
+                                <h6 class="fw-bold mb-0 text-dark">Harga Khusus Member (Tiered Pricing)</h6>
+                                <small class="text-muted">Opsional &bull; Biarkan kosong jika produk ini memakai harga normal untuk level terkait.</small>
+                            </div>
+                        </div>
+                        <div class="row g-2 pt-1">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold text-secondary mb-1">
+                                    <span class="badge bg-secondary-subtle text-secondary me-1">Silver</span> Harga Silver
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white">Rp</span>
+                                    <input type="text" inputmode="numeric" name="price_silver" class="form-control input-rupiah @error('price_silver') is-invalid @enderror" value="{{ old('price_silver') }}" placeholder="Ikut harga normal">
+                                </div>
+                                @error('price_silver') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold text-warning mb-1">
+                                    <span class="badge bg-warning-subtle text-warning me-1">Gold</span> Harga Gold
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white">Rp</span>
+                                    <input type="text" inputmode="numeric" name="price_gold" class="form-control input-rupiah @error('price_gold') is-invalid @enderror" value="{{ old('price_gold') }}" placeholder="Ikut harga normal">
+                                </div>
+                                @error('price_gold') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small fw-semibold text-info mb-1">
+                                    <span class="badge bg-info-subtle text-info me-1">Platinum</span> Harga Platinum
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white">Rp</span>
+                                    <input type="text" inputmode="numeric" name="price_platinum" class="form-control input-rupiah @error('price_platinum') is-invalid @enderror" value="{{ old('price_platinum') }}" placeholder="Ikut harga normal">
+                                </div>
+                                @error('price_platinum') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="col-12 col-md-6">
                     <label class="form-label small fw-semibold">Diskon Promo Bawaan (Opsional)</label>
                     <div class="input-group">

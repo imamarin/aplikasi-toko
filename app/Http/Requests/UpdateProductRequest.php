@@ -17,6 +17,9 @@ class UpdateProductRequest extends FormRequest
             'cost_price' => $this->cost_price !== null ? str_replace(['.', 'Rp', ' '], '', (string) $this->cost_price) : null,
             'selling_price' => $this->selling_price !== null ? str_replace(['.', 'Rp', ' '], '', (string) $this->selling_price) : null,
             'discount_value' => $this->discount_value !== null ? str_replace(['.', 'Rp', ' '], '', (string) $this->discount_value) : null,
+            'price_silver' => !empty($this->price_silver) ? str_replace(['.', 'Rp', ' '], '', (string) $this->price_silver) : null,
+            'price_gold' => !empty($this->price_gold) ? str_replace(['.', 'Rp', ' '], '', (string) $this->price_gold) : null,
+            'price_platinum' => !empty($this->price_platinum) ? str_replace(['.', 'Rp', ' '], '', (string) $this->price_platinum) : null,
         ]);
     }
 
@@ -32,6 +35,9 @@ class UpdateProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'cost_price' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
+            'price_silver' => ['nullable', 'numeric', 'min:0'],
+            'price_gold' => ['nullable', 'numeric', 'min:0'],
+            'price_platinum' => ['nullable', 'numeric', 'min:0'],
             'min_stock' => ['required', 'integer', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
             'discount_type' => ['nullable', 'string', 'in:fixed,percentage'],

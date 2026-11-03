@@ -68,12 +68,24 @@
                             <td>{{ $sale->user?->name ?? 'Kasir' }}</td>
                             <td>{{ $sale->customer?->name ?? 'Umum (Walk-in)' }}</td>
                             <td>
-                                <span class="badge bg-secondary-subtle text-secondary text-uppercase px-3 py-1">
-                                    {{ $sale->payment_method }}
+                                <span class="badge bg-secondary-subtle text-secondary text-uppercase px-2 py-1">
+                                    {{ $sale->payment_method === 'debt' ? 'Hutang/Tempo' : $sale->payment_method }}
                                 </span>
+                                @if($sale->payment_status === 'unpaid')
+                                    <span class="badge bg-danger-subtle text-danger">Belum Bayar</span>
+                                @elseif($sale->payment_status === 'partial')
+                                    <span class="badge bg-warning-subtle text-warning">Cicilan</span>
+                                @else
+                                    <span class="badge bg-success-subtle text-success">Lunas</span>
+                                @endif
                             </td>
                             <td class="text-end">
                                 <div class="fw-bold text-dark">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</div>
+                                @if($sale->remaining_debt > 0)
+                                    <div class="small text-danger fw-semibold" style="font-size: 0.75rem;">
+                                        Sisa Hutang: Rp {{ number_format($sale->remaining_debt, 0, ',', '.') }}
+                                    </div>
+                                @endif
                                 @if($sale->shipping_cost > 0)
                                     <div class="small text-muted fw-normal" style="font-size: 0.75rem;">
                                         <i class="bi bi-truck text-primary me-1"></i>Ongkir: Rp {{ number_format($sale->shipping_cost, 0, ',', '.') }}

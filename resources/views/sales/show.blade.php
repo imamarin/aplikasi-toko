@@ -10,6 +10,11 @@
             <p class="text-muted small mb-0">Rincian produk yang dibeli, pembayaran, dan informasi kasir pelaksana</p>
         </div>
         <div class="d-flex gap-2">
+            @if($sale->remaining_debt > 0 && $sale->customer_id)
+                <a href="{{ route('receivables.show', $sale->customer_id) }}" class="btn btn-danger btn-sm rounded-pill px-3 shadow-sm">
+                    <i class="bi bi-wallet2 me-1"></i> Bayar Piutang
+                </a>
+            @endif
             <a href="{{ route('sales.receipt', $sale->id) }}" target="_blank" class="btn btn-primary-custom btn-sm rounded-pill px-3 shadow-sm">
                 <i class="bi bi-printer me-1"></i> Cetak Struk
             </a>
@@ -39,8 +44,20 @@
                 <small class="text-muted">{{ $sale->customer?->phone ?? '' }}</small>
             </div>
             <div class="col-md-3">
-                <small class="text-muted d-block">Metode Pembayaran</small>
-                <span class="badge bg-secondary text-uppercase px-3 py-1 mt-1">{{ $sale->payment_method }}</span>
+                <small class="text-muted d-block">Metode & Status Bayar</small>
+                <div class="mt-1 d-flex align-items-center gap-1 flex-wrap">
+                    <span class="badge bg-secondary text-uppercase px-2 py-1">{{ $sale->payment_method === 'debt' ? 'Hutang/Tempo' : $sale->payment_method }}</span>
+                    @if($sale->payment_status === 'paid')
+                        <span class="badge bg-success-subtle text-success">Lunas</span>
+                    @elseif($sale->payment_status === 'partial')
+                        <span class="badge bg-warning-subtle text-warning">Cicilan</span>
+                    @else
+                        <span class="badge bg-danger-subtle text-danger">Belum Bayar</span>
+                    @endif
+                </div>
+                @if($sale->due_date && $sale->remaining_debt > 0)
+                    <small class="text-danger d-block mt-1">Jatuh Tempo: {{ $sale->due_date->format('d/m/Y') }}</small>
+                @endif
             </div>
         </div>
     </div>
@@ -113,14 +130,60 @@
                         <span class="text-muted">Uang Dibayar:</span>
                         <span class="fw-semibold">Rp {{ number_format($sale->paid_amount, 0, ',', '.') }}</span>
                     </div>
-                    <div class="list-group-item d-flex justify-content-between px-0 py-2 small text-success fw-bold">
-                        <span>Kembalian:</span>
-                        <span>Rp {{ number_format($sale->change_amount, 0, ',', '.') }}</span>
-                    </div>
+                    @if($sale->remaining_debt > 0)
+                        <div class="list-group-item d-flex justify-content-between px-0 py-2 small text-danger fw-bold">
+                            <span>Sisa Hutang:</span>
+                            <span>Rp {{ number_format($sale->remaining_debt, 0, ',', '.') }}</span>
+                        </div>
+                    @else
+                        <div class="list-group-item d-flex justify-content-between px-0 py-2 small text-success fw-bold">
+                            <span>Kembalian:</span>
+                            <span>Rp {{ number_format($sale->change_amount, 0, ',', '.') }}</span>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Receivable Payment Allocations History -->
+    @if($sale->paymentAllocations && $sale->paymentAllocations->count() > 0)
+        <div class="card card-custom p-4 mb-4 border-primary">
+            <h6 class="fw-bold mb-3 text-primary"><i class="bi bi-cash-coin me-2"></i> Riwayat Pembayaran / Cicilan Piutang Nota Ini</h6>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th>No. Kwitansi</th>
+                            <th>Tanggal Bayar</th>
+                            <th>Metode</th>
+                            <th>Petugas</th>
+                            <th class="text-end">Nominal Dialokasikan</th>
+                            <th class="text-center">Struk</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($sale->paymentAllocations as $alloc)
+                            <tr>
+                                <td class="fw-bold font-monospace">{{ $alloc->receivablePayment?->payment_number }}</td>
+                                <td>{{ $alloc->receivablePayment?->payment_date?->format('d/m/Y H:i') }}</td>
+                                <td><span class="badge bg-light text-dark border text-uppercase">{{ $alloc->receivablePayment?->payment_method }}</span></td>
+                                <td>{{ $alloc->receivablePayment?->user?->name ?? '-' }}</td>
+                                <td class="text-end fw-bold text-success">Rp {{ number_format($alloc->amount, 0, ',', '.') }}</td>
+                                <td class="text-center">
+                                    @if($alloc->receivable_payment_id)
+                                        <a href="{{ route('receivables.payment.receipt', $alloc->receivable_payment_id) }}" target="_blank" class="btn btn-light border btn-sm py-0 px-2" title="Cetak Bukti Bayar">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
 
     <!-- Return History if Exists -->
     @if($sale->returns->count() > 0)

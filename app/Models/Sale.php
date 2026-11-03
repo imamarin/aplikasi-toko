@@ -27,6 +27,7 @@ class Sale extends Model
         'change_amount',
         'payment_method',
         'payment_status',
+        'due_date',
         'status',
         'notes',
     ];
@@ -35,6 +36,7 @@ class Sale extends Model
     {
         return [
             'transaction_date' => 'datetime',
+            'due_date' => 'date',
             'subtotal' => 'decimal:2',
             'discount_value' => 'decimal:2',
             'discount_amount' => 'decimal:2',
@@ -78,5 +80,15 @@ class Sale extends Model
     public function returns()
     {
         return $this->hasMany(SaleReturn::class);
+    }
+
+    public function paymentAllocations()
+    {
+        return $this->hasMany(ReceivablePaymentAllocation::class);
+    }
+
+    public function getRemainingDebtAttribute(): float
+    {
+        return max(0, (float) $this->grand_total - (float) $this->paid_amount);
     }
 }

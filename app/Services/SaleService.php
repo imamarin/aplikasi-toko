@@ -63,6 +63,10 @@ class SaleService
             $subtotal = 0;
             $itemsToProcess = [];
 
+            $customerId = !empty($data['customer_id']) ? (int) $data['customer_id'] : null;
+            $customer = $customerId ? Customer::find($customerId) : null;
+            $customerLevel = $customer?->member_level;
+
             // Calculate and validate stock first
             foreach ($items as $item) {
                 $productId = $item['product_id'];
@@ -81,10 +85,11 @@ class SaleService
                     throw new Exception("Stok untuk '{$product->name}' tidak mencukupi (sisa: {$stockFormatted}, diminta: {$qtyFormatted}).");
                 }
 
-                // Support custom selling price or fallback to default product price
+                // Support custom selling price or fallback to member tier price / default product price
+                $defaultPrice = $product->getPriceForLevel($customerLevel);
                 $sellingPrice = isset($item['selling_price']) && is_numeric($item['selling_price']) && (float) $item['selling_price'] >= 0
                     ? (float) $item['selling_price']
-                    : (float) $product->selling_price;
+                    : $defaultPrice;
 
                 // Support custom line subtotal if provided (e.g., buying by nominal Rupiah)
                 if (isset($item['subtotal']) && is_numeric($item['subtotal']) && (float) $item['subtotal'] >= 0) {
@@ -139,14 +144,34 @@ class SaleService
 
             $grandTotal = round($afterDiscount + $taxAmount + $shippingCost);
             $paymentMethod = $data['payment_method'] ?? 'cash';
-            $paidAmount = (float) ($data['paid_amount'] ?? $grandTotal);
-
-            if ($paymentMethod === 'cash' && $paidAmount < $grandTotal) {
-                throw new Exception("Jumlah pembayaran tunai (Rp " . number_format($paidAmount, 0, ',', '.') . ") kurang dari grand total (Rp " . number_format($grandTotal, 0, ',', '.') . ").");
-            }
-
-            $changeAmount = $paymentMethod === 'cash' ? max(0, $paidAmount - $grandTotal) : 0;
+            $paidAmount = isset($data['paid_amount']) ? (float) $data['paid_amount'] : $grandTotal;
             $customerId = !empty($data['customer_id']) ? (int) $data['customer_id'] : null;
+
+            if ($paymentMethod === 'debt') {
+                if (!$customerId) {
+                    throw new Exception('Transaksi hutang/tempo wajib memilih pelanggan terdaftar (tidak boleh Pelanggan Umum).');
+                }
+                if ($paidAmount < 0) {
+                    $paidAmount = 0;
+                }
+                if ($paidAmount <= 0) {
+                    $paymentStatus = 'unpaid';
+                    $changeAmount = 0;
+                } elseif ($paidAmount < $grandTotal) {
+                    $paymentStatus = 'partial';
+                    $changeAmount = 0;
+                } else {
+                    $paymentStatus = 'paid';
+                    $changeAmount = $paidAmount - $grandTotal;
+                    $paidAmount = $grandTotal;
+                }
+            } else {
+                if ($paymentMethod === 'cash' && $paidAmount < $grandTotal) {
+                    throw new Exception("Jumlah pembayaran tunai (Rp " . number_format($paidAmount, 0, ',', '.') . ") kurang dari grand total (Rp " . number_format($grandTotal, 0, ',', '.') . ").");
+                }
+                $paymentStatus = 'paid';
+                $changeAmount = $paymentMethod === 'cash' ? max(0, $paidAmount - $grandTotal) : 0;
+            }
 
             // Create Sale Header
             $sale = Sale::create([
@@ -166,7 +191,8 @@ class SaleService
                 'paid_amount' => $paidAmount,
                 'change_amount' => $changeAmount,
                 'payment_method' => $paymentMethod,
-                'payment_status' => 'paid',
+                'payment_status' => $paymentStatus,
+                'due_date' => !empty($data['due_date']) ? Carbon::parse($data['due_date']) : null,
                 'status' => 'completed',
                 'notes' => $data['notes'] ?? null,
             ]);
@@ -197,7 +223,7 @@ class SaleService
                 );
             }
 
-            // Record cash in if cash payment
+            // Record cash in if cash payment or DP on debt
             if ($paymentMethod === 'cash') {
                 $netCashReceived = $grandTotal; // Cash effectively retained
                 $this->cashService->recordTransaction(
@@ -209,6 +235,18 @@ class SaleService
                     refType: Sale::class,
                     refId: $sale->id,
                     description: "Penjualan POS Tunai #{$invoiceNumber}"
+                );
+            } elseif ($paymentMethod === 'debt' && $paidAmount > 0) {
+                $dpAmount = min($paidAmount, $grandTotal);
+                $this->cashService->recordTransaction(
+                    cashShiftId: $currentShift?->id,
+                    userId: $userId,
+                    type: 'in',
+                    category: 'receivable_dp',
+                    amount: $dpAmount,
+                    refType: Sale::class,
+                    refId: $sale->id,
+                    description: "DP Penjualan Tempo #{$invoiceNumber}"
                 );
             }
 

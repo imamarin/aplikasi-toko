@@ -489,15 +489,21 @@
             <a href="{{ route('purchases.index') }}" class="nav-link-custom {{ request()->routeIs('purchases.*') ? 'active' : '' }}">
                 <i class="bi bi-bag-check-fill"></i> Pembelian Supplier
             </a>
+            <a href="{{ route('payables.index') }}" class="nav-link-custom {{ request()->routeIs('payables.*') ? 'active' : '' }}">
+                <i class="bi bi-journal-minus"></i> Hutang Supplier
+            </a>
             <a href="{{ route('suppliers.index') }}" class="nav-link-custom {{ request()->routeIs('suppliers.*') ? 'active' : '' }}">
                 <i class="bi bi-truck"></i> Data Supplier
             </a>
             @endif
 
             <!-- Nav: Pelanggan & Retur -->
-            <div class="sidebar-heading">Pelanggan & Retur</div>
+            <div class="sidebar-heading">Pelanggan & Piutang</div>
             <a href="{{ route('customers.index') }}" class="nav-link-custom {{ request()->routeIs('customers.*') ? 'active' : '' }}">
                 <i class="bi bi-people-fill"></i> Pelanggan / Member
+            </a>
+            <a href="{{ route('receivables.index') }}" class="nav-link-custom {{ request()->routeIs('receivables.*') ? 'active' : '' }}">
+                <i class="bi bi-journal-bookmark-fill"></i> Piutang Pelanggan
             </a>
             <a href="{{ route('returns.sales.index') }}" class="nav-link-custom {{ request()->routeIs('returns.sales.*') ? 'active' : '' }}">
                 <i class="bi bi-arrow-counterclockwise"></i> Retur Penjualan

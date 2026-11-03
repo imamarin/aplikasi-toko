@@ -133,7 +133,11 @@ class CashShiftController extends Controller
 
     public function show(CashShift $cashShift)
     {
-        $cashShift->load(['user', 'sales.customer', 'transactions']);
+        $cashShift->load([
+            'user',
+            'sales' => fn ($q) => $q->with(['customer', 'details.product.unit'])->orderBy('transaction_date', 'asc'),
+            'transactions' => fn ($q) => $q->orderBy('transaction_date', 'asc'),
+        ]);
         $summary = $this->cashService->calculateShiftSummary($cashShift);
 
         return view('cash-shifts.show', compact('cashShift', 'summary'));

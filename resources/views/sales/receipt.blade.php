@@ -127,13 +127,26 @@
             <td class="text-end">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</td>
         </tr>
         <tr>
-            <td>Bayar ({{ strtoupper($sale->payment_method) }}):</td>
+            <td>Bayar ({{ $sale->payment_method === 'debt' ? 'TEMPO/DP' : strtoupper($sale->payment_method) }}):</td>
             <td class="text-end">{{ number_format($sale->paid_amount, 0, ',', '.') }}</td>
         </tr>
-        <tr class="fw-bold">
-            <td>Kembalian:</td>
-            <td class="text-end">{{ number_format($sale->change_amount, 0, ',', '.') }}</td>
-        </tr>
+        @if($sale->remaining_debt > 0)
+            <tr class="fw-bold">
+                <td>SISA HUTANG:</td>
+                <td class="text-end">Rp {{ number_format($sale->remaining_debt, 0, ',', '.') }}</td>
+            </tr>
+            @if($sale->due_date)
+                <tr>
+                    <td>Jatuh Tempo:</td>
+                    <td class="text-end">{{ $sale->due_date->format('d/m/Y') }}</td>
+                </tr>
+            @endif
+        @else
+            <tr class="fw-bold">
+                <td>Kembalian:</td>
+                <td class="text-end">{{ number_format($sale->change_amount, 0, ',', '.') }}</td>
+            </tr>
+        @endif
     </table>
 
     <div class="double-divider"></div>

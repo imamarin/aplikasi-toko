@@ -10,6 +10,11 @@
             <p class="text-muted small mb-0">Informasi pesanan barang masuk dari supplier dan histori penerimaan stok</p>
         </div>
         <div class="d-flex gap-2">
+            @if($purchase->remaining_debt > 0 && $purchase->supplier_id)
+                <a href="{{ route('payables.show', $purchase->supplier_id) }}" class="btn btn-danger btn-sm rounded-pill px-3 shadow-sm">
+                    <i class="bi bi-wallet2 me-1"></i> Bayar Hutang PO
+                </a>
+            @endif
             <button onclick="window.print()" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
                 <i class="bi bi-printer me-1"></i> Cetak Dokumen
             </button>
@@ -114,5 +119,44 @@
             </div>
         </div>
     </div>
+
+    <!-- Payable Payment Allocations History -->
+    @if($purchase->paymentAllocations && $purchase->paymentAllocations->count() > 0)
+        <div class="card card-custom p-4 mb-4 border-primary">
+            <h6 class="fw-bold mb-3 text-primary"><i class="bi bi-cash-coin me-2"></i> Riwayat Pembayaran / Cicilan Hutang PO Ini</h6>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light small">
+                        <tr>
+                            <th>No. Bukti Bayar</th>
+                            <th>Tanggal Bayar</th>
+                            <th>Metode</th>
+                            <th>Petugas</th>
+                            <th class="text-end">Nominal Dialokasikan</th>
+                            <th class="text-center">Bukti</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($purchase->paymentAllocations as $alloc)
+                            <tr>
+                                <td class="fw-bold font-monospace">{{ $alloc->payablePayment?->payment_number }}</td>
+                                <td>{{ $alloc->payablePayment?->payment_date?->format('d/m/Y H:i') }}</td>
+                                <td><span class="badge bg-light text-dark border text-uppercase">{{ $alloc->payablePayment?->payment_method }}</span></td>
+                                <td>{{ $alloc->payablePayment?->user?->name ?? '-' }}</td>
+                                <td class="text-end fw-bold text-success">Rp {{ number_format($alloc->amount, 0, ',', '.') }}</td>
+                                <td class="text-center">
+                                    @if($alloc->payable_payment_id)
+                                        <a href="{{ route('payables.payment.receipt', $alloc->payable_payment_id) }}" target="_blank" class="btn btn-light border btn-sm py-0 px-2" title="Cetak Bukti Bayar">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
 </div>
 @endsection

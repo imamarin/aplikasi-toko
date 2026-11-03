@@ -426,17 +426,48 @@
                                         <i class="bi bi-bank d-block fs-4 mb-1"></i> Transfer
                                     </label>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-4">
                                     <input type="radio" class="btn-check" name="payment_method" id="payDebit" value="debit" onchange="handlePaymentMethodChange('debit')">
                                     <label class="btn btn-outline-primary w-100 py-2 fw-semibold rounded-3" for="payDebit">
                                         <i class="bi bi-credit-card d-block fs-4 mb-1"></i> Kartu Debit
                                     </label>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-4">
                                     <input type="radio" class="btn-check" name="payment_method" id="payCredit" value="credit" onchange="handlePaymentMethodChange('credit')">
                                     <label class="btn btn-outline-primary w-100 py-2 fw-semibold rounded-3" for="payCredit">
                                         <i class="bi bi-credit-card-2-front d-block fs-4 mb-1"></i> Kartu Kredit
                                     </label>
+                                </div>
+                                <div class="col-4">
+                                    <input type="radio" class="btn-check" name="payment_method" id="payDebt" value="debt" onchange="handlePaymentMethodChange('debt')">
+                                    <label class="btn btn-outline-danger w-100 py-2 fw-semibold rounded-3" for="payDebt">
+                                        <i class="bi bi-journal-bookmark-fill d-block fs-4 mb-1"></i> Hutang / Tempo
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Info Khusus Hutang / Tempo -->
+                        <div id="debtFieldsContainer" class="mb-3 p-3 rounded-3 border border-danger-subtle bg-danger-subtle bg-opacity-10 d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="small fw-bold text-danger">
+                                    <i class="bi bi-person-check-fill me-1"></i> Pelanggan Hutang: <span id="debtCustomerNameBadge" class="text-dark">-</span>
+                                </div>
+                                <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2 rounded-pill" style="font-size: 0.72rem;" onclick="switchToSelectCustomerFromCheckout()">
+                                    Pilih / Ganti Pelanggan
+                                </button>
+                            </div>
+                            <div class="row g-2 align-items-center">
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold mb-1">Jatuh Tempo (Opsional)</label>
+                                    <input type="date" id="inputDueDate" class="form-control form-control-sm" value="{{ now()->addDays(7)->format('Y-m-d') }}">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label small fw-semibold mb-1">Opsi DP Cepat</label>
+                                    <div class="d-flex gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="setQuickCash(0)">Tanpa DP (Rp 0)</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="setQuickCash('half')">DP 50%</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -514,7 +545,7 @@
                                 </div>
                                 <hr>
                                 <div class="d-flex justify-content-between align-items-center p-3 rounded-3 bg-white border">
-                                    <span class="fw-semibold">Kembalian:</span>
+                                    <span class="fw-semibold" id="modalChangeLabel">Kembalian:</span>
                                     <span class="fw-bold fs-4 text-success" id="modalChangeAmount">Rp 0</span>
                                 </div>
                             </div>
@@ -543,7 +574,7 @@
             <p class="text-muted small mb-3" id="successInvoiceText">Invoice: INV-XXXX</p>
 
             <div class="p-3 bg-light rounded-3 mb-4 border">
-                <small class="text-muted d-block">Uang Kembalian:</small>
+                <small class="text-muted d-block" id="successChangeLabel">Uang Kembalian:</small>
                 <h3 class="fw-bold text-success mb-0" id="successChangeText">Rp 0</h3>
             </div>
 
@@ -1133,6 +1164,22 @@
         grid.innerHTML = html;
     }
 
+    // Helper function to resolve tiered price based on customer level
+    function getProductPriceForLevel(p, level = '') {
+        if (!p) return 0;
+        const lvl = (level || (typeof selectedCustomerLevel !== 'undefined' ? selectedCustomerLevel : 'regular')).toLowerCase();
+        if (lvl === 'silver' && p.price_silver && parseFloat(p.price_silver) > 0) {
+            return parseFloat(p.price_silver);
+        }
+        if (lvl === 'gold' && p.price_gold && parseFloat(p.price_gold) > 0) {
+            return parseFloat(p.price_gold);
+        }
+        if (lvl === 'platinum' && p.price_platinum && parseFloat(p.price_platinum) > 0) {
+            return parseFloat(p.price_platinum);
+        }
+        return parseFloat(p.selling_price) || 0;
+    }
+
     // Cart Operations
     function addToCart(product) {
         const stockNum = parseFloat(product.stock);
@@ -1141,8 +1188,11 @@
             return;
         }
 
+        const activeSellingPrice = getProductPriceForLevel(product, typeof selectedCustomerLevel !== 'undefined' ? selectedCustomerLevel : 'regular');
+
         const existing = cart.find(item => item.product_id === product.id);
         if (existing) {
+            existing.product = existing.product || product;
             if (existing.qty + 1 > existing.stock) {
                 alert(`Tidak dapat menambah item. Stok tersedia hanya ${formatStockDisplay(existing.stock)}.`);
                 return;
@@ -1160,7 +1210,7 @@
             existing.subtotal = Math.max(0, Math.round((existing.price * existing.qty) - (existing.discount || 0)));
             existing.is_custom_subtotal = false;
         } else {
-            const price = parseFloat(product.selling_price);
+            const price = activeSellingPrice;
             const discountType = product.discount_type || 'fixed';
             const discountVal = parseFloat(product.discount_value) || 0;
             
@@ -1176,8 +1226,9 @@
             cart.push({
                 product_id: product.id,
                 name: product.name,
+                product: product,
                 price: price,
-                original_price: price,
+                original_price: parseFloat(product.selling_price) || price,
                 stock: stockNum,
                 unit: product.unit?.short_name || 'pcs',
                 qty: 1,
@@ -1266,7 +1317,12 @@
                 ? item.subtotal
                 : Math.max(0, lineGross - lineDiscount);
 
-            const isCustom = item.is_custom || (item.original_price && item.price !== item.original_price) || item.is_custom_subtotal || (!Number.isInteger(item.qty));
+            const isMemberTierPrice = Boolean(selectedCustomerId && item.product && item.price !== (parseFloat(item.product.selling_price) || 0) && item.price === getProductPriceForLevel(item.product, typeof selectedCustomerLevel !== 'undefined' ? selectedCustomerLevel : 'regular'));
+            const memberBadge = isMemberTierPrice 
+                ? `<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size: 0.65rem; padding: 2px 5px;" title="Harga Khusus Member ${(selectedCustomerLevel || 'Member').toUpperCase()}"><i class="bi bi-award-fill me-1"></i>${(selectedCustomerLevel || 'Member').toUpperCase()}</span>` 
+                : '';
+
+            const isCustom = (!isMemberTierPrice) && (item.is_custom || (item.original_price && item.price !== item.original_price) || item.is_custom_subtotal || (!Number.isInteger(item.qty)));
 
             const customBadge = isCustom 
                 ? `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1" style="font-size: 0.65rem; padding: 2px 5px;" title="Harga atau kuantitas disesuaikan">Custom</span>` 
@@ -1283,7 +1339,7 @@
                 <div class="card p-2 mb-2 border rounded-3 bg-white shadow-xs">
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <div class="fw-semibold text-dark small text-truncate pe-2" style="max-width: 155px;" title="${item.name}">
-                            ${item.name} ${customBadge} ${discountBadge}
+                            ${item.name} ${memberBadge} ${customBadge} ${discountBadge}
                         </div>
                         <div class="d-flex align-items-center gap-1">
                             <button type="button" class="btn btn-sm btn-link ${lineDiscount > 0 ? 'text-danger' : 'text-secondary'} p-0 text-decoration-none" onclick="openCustomItemModal(${idx}, 'discount')" title="Atur Diskon Produk">
@@ -1443,16 +1499,47 @@
         calcChange();
     }
 
+    function switchToSelectCustomerFromCheckout() {
+        checkoutModal.hide();
+        setTimeout(() => {
+            openSelectCustomerModal();
+        }, 300);
+    }
+
+    function updateDebtCustomerBadge() {
+        const badge = document.getElementById('debtCustomerNameBadge');
+        if (!badge) return;
+        const custId = document.getElementById('customerSelect')?.value;
+        if (custId) {
+            badge.innerText = selectedCustomerName;
+            badge.className = 'text-success fw-bold';
+        } else {
+            badge.innerText = 'Belum Dipilih (Wajib Pilih Member/Pelanggan!)';
+            badge.className = 'text-danger fw-bold';
+        }
+    }
+
     function handlePaymentMethodChange(method) {
         const quickCash = document.getElementById('quickCashContainer');
+        const debtFields = document.getElementById('debtFieldsContainer');
         const rawShipping = (document.getElementById('inputShippingCost').value || '').toString().replace(/\./g, '');
         const shippingCost = parseFloat(rawShipping) || 0;
         const totalWithShipping = Math.round(currentGrandTotal + shippingCost);
 
         if (method === 'cash') {
             quickCash.style.display = 'block';
+            if (debtFields) debtFields.classList.add('d-none');
+            document.getElementById('inputPaidAmount').value = formatRupiahString(totalWithShipping);
+        } else if (method === 'debt') {
+            quickCash.style.display = 'none';
+            if (debtFields) {
+                debtFields.classList.remove('d-none');
+                updateDebtCustomerBadge();
+            }
+            document.getElementById('inputPaidAmount').value = '0';
         } else {
             quickCash.style.display = 'none';
+            if (debtFields) debtFields.classList.add('d-none');
             document.getElementById('inputPaidAmount').value = formatRupiahString(totalWithShipping);
         }
         calcChange();
@@ -1465,6 +1552,8 @@
 
         if (val === 'exact') {
             document.getElementById('inputPaidAmount').value = formatRupiahString(totalWithShipping);
+        } else if (val === 'half') {
+            document.getElementById('inputPaidAmount').value = formatRupiahString(Math.round(totalWithShipping / 2));
         } else {
             document.getElementById('inputPaidAmount').value = formatRupiahString(val);
         }
@@ -1493,17 +1582,34 @@
         const change = paid - totalWithShipping;
 
         document.getElementById('modalPaidTotal').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(paid);
-        document.getElementById('modalChangeAmount').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.max(0, change));
 
         const btnSubmit = document.getElementById('btnSubmitPayment');
         const selectedMethod = document.querySelector('input[name="payment_method"]:checked').value;
+        const changeLabel = document.getElementById('modalChangeLabel');
 
-        if (selectedMethod === 'cash' && change < 0) {
-            btnSubmit.disabled = true;
-            document.getElementById('modalChangeAmount').className = 'fw-bold fs-4 text-danger';
-        } else {
+        if (selectedMethod === 'debt') {
+            updateDebtCustomerBadge();
+            if (change < 0) {
+                if (changeLabel) changeLabel.innerText = 'Sisa Hutang:';
+                document.getElementById('modalChangeAmount').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.abs(change));
+                document.getElementById('modalChangeAmount').className = 'fw-bold fs-4 text-danger';
+            } else {
+                if (changeLabel) changeLabel.innerText = 'Kembalian:';
+                document.getElementById('modalChangeAmount').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.max(0, change));
+                document.getElementById('modalChangeAmount').className = 'fw-bold fs-4 text-success';
+            }
             btnSubmit.disabled = false;
-            document.getElementById('modalChangeAmount').className = 'fw-bold fs-4 text-success';
+        } else {
+            if (changeLabel) changeLabel.innerText = 'Kembalian:';
+            document.getElementById('modalChangeAmount').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.max(0, change));
+
+            if (selectedMethod === 'cash' && change < 0) {
+                btnSubmit.disabled = true;
+                document.getElementById('modalChangeAmount').className = 'fw-bold fs-4 text-danger';
+            } else {
+                btnSubmit.disabled = false;
+                document.getElementById('modalChangeAmount').className = 'fw-bold fs-4 text-success';
+            }
         }
     }
 
@@ -1515,6 +1621,13 @@
         const rawPaid = (document.getElementById('inputPaidAmount').value || '').toString().replace(/\./g, '');
         const paidAmount = parseFloat(rawPaid) || 0;
         const paymentMethod = document.querySelector('input[name="payment_method"]:checked').value;
+        const customerId = document.getElementById('customerSelect').value || null;
+
+        if (paymentMethod === 'debt' && !customerId) {
+            alert('Transaksi hutang/tempo wajib memilih pelanggan terdaftar! Silakan pilih pelanggan terlebih dahulu.');
+            switchToSelectCustomerFromCheckout();
+            return;
+        }
 
         if (paymentMethod === 'cash' && paidAmount < totalWithShipping) {
             alert('Nominal uang tunai kurang dari total tagihan.');
@@ -1530,13 +1643,14 @@
                 subtotal: (i.subtotal !== undefined && i.is_custom_subtotal) ? i.subtotal : Math.round((i.price * i.qty) - i.discount),
                 discount: i.discount
             })),
-            customer_id: document.getElementById('customerSelect').value || null,
+            customer_id: customerId,
             discount_type: document.getElementById('selectDiscountType').value,
             discount_value: parseFloat(rawDiscVal) || 0,
             tax_percentage: parseFloat(document.getElementById('inputTax').value) || 0,
             shipping_cost: shippingCost,
             paid_amount: paidAmount,
             payment_method: paymentMethod,
+            due_date: paymentMethod === 'debt' ? (document.getElementById('inputDueDate')?.value || null) : null,
             notes: document.getElementById('inputSaleNotes').value
         };
 
@@ -1561,7 +1675,17 @@
             if (res.success) {
                 checkoutModal.hide();
                 document.getElementById('successInvoiceText').innerText = 'No. Nota: ' + res.invoice_number;
-                document.getElementById('successChangeText').innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(res.change_amount);
+                const successLabel = document.getElementById('successChangeLabel');
+                const successText = document.getElementById('successChangeText');
+                if (res.remaining_debt && res.remaining_debt > 0) {
+                    if (successLabel) successLabel.innerText = 'Sisa Hutang Pelanggan:';
+                    successText.innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(res.remaining_debt);
+                    successText.className = 'fw-bold text-danger mb-0';
+                } else {
+                    if (successLabel) successLabel.innerText = 'Uang Kembalian:';
+                    successText.innerText = 'Rp ' + new Intl.NumberFormat('id-ID').format(res.change_amount);
+                    successText.className = 'fw-bold text-success mb-0';
+                }
                 document.getElementById('btnPrintReceipt').href = res.receipt_url;
 
                 successModal.show();
@@ -1582,6 +1706,7 @@
     let customersList = @json($customers);
     let selectedCustomerId = '';
     let selectedCustomerName = 'Pelanggan: Umum (Walk-in)';
+    let selectedCustomerLevel = 'regular';
     let currentCustomerFilterLevel = 'all';
 
     function openSelectCustomerModal() {
@@ -1776,6 +1901,29 @@
     function applyCustomerSelection(id, name, level = '') {
         selectedCustomerId = id ? String(id) : '';
         selectedCustomerName = name;
+        selectedCustomerLevel = (level && String(level).trim() !== '' && String(level).toLowerCase() !== 'umum') ? String(level).toLowerCase() : 'regular';
+
+        // Recalculate cart items prices based on new customer level
+        let hasPriceChanged = false;
+        cart.forEach(item => {
+            if (item.product && !item.is_custom_subtotal) {
+                const newPrice = getProductPriceForLevel(item.product, selectedCustomerLevel);
+                if (item.price !== newPrice) {
+                    item.price = newPrice;
+                    hasPriceChanged = true;
+                    if (item.discount_value > 0) {
+                        const gross = item.price * item.qty;
+                        if (item.discount_type === 'percentage') {
+                            item.discount = Math.round((gross * item.discount_value) / 100);
+                        } else {
+                            item.discount = Math.round(item.discount_value * item.qty);
+                        }
+                        if (item.discount > gross) item.discount = gross;
+                    }
+                    item.subtotal = Math.max(0, Math.round((item.price * item.qty) - (item.discount || 0)));
+                }
+            }
+        });
 
         // Sync hidden select element
         const select = document.getElementById('customerSelect');
@@ -1798,6 +1946,10 @@
             displayBadge.innerText = level || 'Member';
             displayBadge.className = `badge ${getMemberBadgeClass(level || 'member')} py-1 px-2`;
             displayBadge.classList.remove('d-none');
+        }
+
+        if (hasPriceChanged) {
+            renderCart();
         }
 
         selectCustomerModal.hide();
