@@ -9,7 +9,13 @@
             <h4 class="fw-bold mb-1">Katalog & Data Produk</h4>
             <p class="text-muted small mb-0">Kelola informasi produk, penetapan harga jual, SKU, barcode, dan batas stok minimum</p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" id="btnPrintSelectedBarcode" class="btn btn-dark btn-sm rounded-pill px-3 d-none align-items-center gap-1 shadow-sm" onclick="submitSelectedBarcodes()">
+                <i class="bi bi-upc-scan"></i> Cetak Barcode Terpilih (<span id="selectedCount">0</span>)
+            </button>
+            <a href="{{ route('products.barcode') }}" class="btn btn-outline-dark btn-sm rounded-pill px-3 d-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-upc-scan"></i> Cetak Label Barcode
+            </a>
             <a href="{{ route('products.export.excel') }}" class="btn btn-outline-success btn-sm rounded-pill px-3 d-flex align-items-center gap-1 shadow-sm">
                 <i class="bi bi-file-earmark-spreadsheet"></i> Ekspor CSV / Excel
             </a>
@@ -52,12 +58,18 @@
         </form>
     </div>
 
+    <!-- Form tersembunyi untuk cetak barcode massal -->
+    <form id="bulkBarcodeForm" action="{{ route('products.barcode') }}" method="GET" class="d-none"></form>
+
     <!-- Products Data Table -->
     <div class="card card-custom">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
+                        <th class="text-center" style="width: 40px;">
+                            <input type="checkbox" class="form-check-input" id="selectAllProducts" title="Pilih Semua Produk di Halaman Ini">
+                        </th>
                         <th style="width: 50px;">#</th>
                         <th>Foto</th>
                         <th>SKU / Barcode</th>
@@ -67,12 +79,15 @@
                         <th class="text-end">Harga Jual</th>
                         <th class="text-center">Stok</th>
                         <th class="text-center">Status</th>
-                        <th class="text-center" style="width: 140px;">Aksi</th>
+                        <th class="text-center" style="width: 170px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($products as $index => $prod)
                         <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input product-checkbox" value="{{ $prod->id }}">
+                            </td>
                             <td>{{ $products->firstItem() + $index }}</td>
                             <td>
                                 @if($prod->image)
@@ -145,6 +160,9 @@
                             </td>
                             <td class="text-center">
                                 <div class="btn-group btn-group-sm">
+                                    <a href="{{ route('products.barcode', ['product_id' => $prod->id]) }}" class="btn btn-light border" title="Cetak Barcode Produk Ini">
+                                        <i class="bi bi-upc-scan text-dark"></i>
+                                    </a>
                                     <a href="{{ route('products.show', $prod->id) }}" class="btn btn-light border" title="Kartu Stok & Riwayat">
                                         <i class="bi bi-clock-history text-secondary"></i>
                                     </a>
@@ -163,7 +181,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center py-5 text-muted">
+                            <td colspan="11" class="text-center py-5 text-muted">
                                 <i class="bi bi-search fs-1 d-block mb-2 text-secondary"></i>
                                 Tidak ada produk yang sesuai dengan kriteria pencarian.
                             </td>
@@ -180,4 +198,54 @@
         @endif
     </div>
 </div>
+
+@push('scripts')
+<script>
+    const selectAllCheckbox = document.getElementById('selectAllProducts');
+    const productCheckboxes = document.querySelectorAll('.product-checkbox');
+    const btnPrintSelected = document.getElementById('btnPrintSelectedBarcode');
+    const selectedCountSpan = document.getElementById('selectedCount');
+    const bulkForm = document.getElementById('bulkBarcodeForm');
+
+    function updateSelectedCount() {
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        selectedCountSpan.textContent = checked.length;
+        if (checked.length > 0) {
+            btnPrintSelected.classList.remove('d-none');
+            btnPrintSelected.classList.add('d-flex');
+        } else {
+            btnPrintSelected.classList.add('d-none');
+            btnPrintSelected.classList.remove('d-flex');
+        }
+    }
+
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function () {
+            productCheckboxes.forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+            });
+            updateSelectedCount();
+        });
+    }
+
+    productCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateSelectedCount);
+    });
+
+    function submitSelectedBarcodes() {
+        const checked = document.querySelectorAll('.product-checkbox:checked');
+        if (checked.length === 0) return;
+
+        bulkForm.innerHTML = '';
+        checked.forEach(cb => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'product_ids[]';
+            input.value = cb.value;
+            bulkForm.appendChild(input);
+        });
+        bulkForm.submit();
+    }
+</script>
+@endpush
 @endsection

@@ -166,7 +166,14 @@
                             <td><span class="badge bg-light text-dark border font-monospace">{{ $p->sku }}</span></td>
                             <td class="fw-bold text-dark">{{ $p->product_name }}</td>
                             <td>{{ $p->category_name }}</td>
-                            <td class="text-center fw-bold">{{ number_format($p->total_qty, 0, ',', '.') }} {{ $p->unit_name }}</td>
+                            <td class="text-center fw-bold">
+                                {{ number_format($p->total_qty, 0, ',', '.') }} {{ $p->unit_name }}
+                                @if(($p->returned_qty ?? 0) > 0)
+                                    <div class="small text-danger fw-normal" style="font-size: 0.7rem;">
+                                        ({{ number_format($p->gross_qty, 0, ',', '.') }} terjual - {{ number_format($p->returned_qty, 0, ',', '.') }} retur)
+                                    </div>
+                                @endif
+                            </td>
                             <td class="text-end fw-semibold">Rp {{ number_format($p->total_sales, 0, ',', '.') }}</td>
                             <td class="text-end text-muted">Rp {{ number_format($p->total_cogs, 0, ',', '.') }}</td>
                             <td class="text-end fw-bold text-success">

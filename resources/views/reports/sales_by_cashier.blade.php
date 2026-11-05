@@ -144,13 +144,14 @@
                 <thead class="table-light small">
                     <tr>
                         <th style="width: 5%;" class="text-center">#</th>
-                        <th style="width: 22%;">Nama Kasir</th>
-                        <th style="width: 12%;" class="text-center">Jabatan / Role</th>
-                        <th style="width: 12%;" class="text-center">Jumlah Transaksi</th>
-                        <th style="width: 13%;" class="text-end">Subtotal Kotor</th>
-                        <th style="width: 10%;" class="text-end">Diskon Diberikan</th>
-                        <th style="width: 14%;" class="text-end">Total Omset</th>
-                        <th style="width: 12%;" class="text-end">Kontribusi</th>
+                        <th style="width: 20%;">Nama Kasir</th>
+                        <th style="width: 11%;" class="text-center">Jabatan / Role</th>
+                        <th style="width: 11%;" class="text-center">Jumlah Transaksi</th>
+                        <th style="width: 12%;" class="text-end">Subtotal Kotor</th>
+                        <th style="width: 9%;" class="text-end">Diskon</th>
+                        <th style="width: 9%;" class="text-end">Retur (-)</th>
+                        <th style="width: 13%;" class="text-end">Total Omset Bersih</th>
+                        <th style="width: 10%;" class="text-end">Kontribusi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -171,6 +172,9 @@
                             <td class="text-end text-danger">
                                 {{ $c->total_discount > 0 ? '-Rp ' . number_format($c->total_discount, 0, ',', '.') : '-' }}
                             </td>
+                            <td class="text-end text-danger">
+                                {{ ($c->total_returns ?? 0) > 0 ? '-Rp ' . number_format($c->total_returns, 0, ',', '.') : '-' }}
+                            </td>
                             <td class="text-end fw-bold text-primary">
                                 Rp {{ number_format($c->total_grand_total, 0, ',', '.') }}
                             </td>
@@ -183,7 +187,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">Belum ada transaksi yang dilakukan oleh kasir pada periode ini.</td>
+                            <td colspan="9" class="text-center text-muted py-4">Belum ada transaksi yang dilakukan oleh kasir pada periode ini.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -194,6 +198,7 @@
                             <td class="text-center">{{ number_format($summary['overall_transactions'], 0, ',', '.') }} Nota</td>
                             <td class="text-end">Rp {{ number_format($cashiers->sum('total_subtotal'), 0, ',', '.') }}</td>
                             <td class="text-end text-danger">-Rp {{ number_format($cashiers->sum('total_discount'), 0, ',', '.') }}</td>
+                            <td class="text-end text-danger">-Rp {{ number_format($summary['overall_returns'] ?? 0, 0, ',', '.') }}</td>
                             <td class="text-end text-primary">Rp {{ number_format($summary['overall_turnover'], 0, ',', '.') }}</td>
                             <td class="text-end">100.0%</td>
                         </tr>

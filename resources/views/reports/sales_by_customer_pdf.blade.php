@@ -58,13 +58,14 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 5%;" class="text-center">#</th>
-                <th style="width: 25%;">Nama Pelanggan</th>
-                <th style="width: 15%;">Kontak / No. HP</th>
-                <th style="width: 12%;" class="text-center">Tipe Member</th>
-                <th style="width: 13%;" class="text-center">Jumlah Transaksi</th>
-                <th style="width: 15%;" class="text-right">Total Belanja (Omset)</th>
-                <th style="width: 15%;" class="text-right">Rata-rata / Belanja</th>
+                <th style="width: 4%;" class="text-center">#</th>
+                <th style="width: 22%;">Nama Pelanggan</th>
+                <th style="width: 14%;">Kontak / No. HP</th>
+                <th style="width: 10%;" class="text-center">Tipe Member</th>
+                <th style="width: 11%;" class="text-center">Jumlah Transaksi</th>
+                <th style="width: 12%;" class="text-right">Retur (-)</th>
+                <th style="width: 14%;" class="text-right">Total Belanja Bersih</th>
+                <th style="width: 13%;" class="text-right">Rata-rata / Belanja</th>
             </tr>
         </thead>
         <tbody>
@@ -86,12 +87,13 @@
                         @endif
                     </td>
                     <td class="text-center">{{ number_format($c->total_transactions, 0, ',', '.') }} Nota</td>
+                    <td class="text-right" style="color: #b91c1c;">{{ ($c->total_returns ?? 0) > 0 ? '-Rp ' . number_format($c->total_returns, 0, ',', '.') : '-' }}</td>
                     <td class="text-right fw-bold">Rp {{ number_format($c->total_spent, 0, ',', '.') }}</td>
                     <td class="text-right">Rp {{ number_format($c->avg_per_transaction, 0, ',', '.') }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" class="text-center" style="padding: 15px; color: #888;">Belum ada data transaksi pelanggan pada periode ini.</td>
+                    <td colspan="8" class="text-center" style="padding: 15px; color: #888;">Belum ada data transaksi pelanggan pada periode ini.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -99,6 +101,7 @@
             <tr class="fw-bold" style="background-color: #f1f5f9;">
                 <td colspan="4" class="text-right">TOTAL KESELURUHAN:</td>
                 <td class="text-center">{{ number_format($summary['total_transactions'], 0, ',', '.') }} Nota</td>
+                <td class="text-right" style="color: #b91c1c;">-Rp {{ number_format($summary['total_returns'] ?? 0, 0, ',', '.') }}</td>
                 <td class="text-right">Rp {{ number_format($summary['total_spent'], 0, ',', '.') }}</td>
                 <td class="text-right">
                     @php

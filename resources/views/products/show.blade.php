@@ -10,6 +10,9 @@
             <p class="text-muted small mb-0">Informasi detail produk dan kartu audit riwayat pergerakan stok</p>
         </div>
         <div class="d-flex gap-2">
+            <a href="{{ route('products.barcode', ['product_id' => $product->id]) }}" class="btn btn-dark btn-sm rounded-pill px-3">
+                <i class="bi bi-upc-scan me-1"></i> Cetak Barcode
+            </a>
             <a href="{{ route('products.edit', $product->id) }}" class="btn btn-primary-custom btn-sm rounded-pill px-3">
                 <i class="bi bi-pencil-square me-1"></i> Edit Produk
             </a>
@@ -46,6 +49,13 @@
                         <span class="text-muted">Status:</span>
                         <span>{!! $product->status ? '<span class="badge bg-success-subtle text-success">Aktif</span>' : '<span class="badge bg-danger-subtle text-danger">Nonaktif</span>' !!}</span>
                     </div>
+                </div>
+
+                <div class="mt-3 p-3 bg-light rounded-3 border text-center">
+                    <div class="mb-1">
+                        {!! \App\Services\BarcodeService::generateSvg($product->barcode ?: $product->sku, 38, 1.3) !!}
+                    </div>
+                    <div class="font-monospace small fw-bold text-dark">{{ $product->barcode ?: $product->sku }}</div>
                 </div>
             </div>
         </div>

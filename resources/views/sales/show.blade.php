@@ -82,6 +82,14 @@
                 </thead>
                 <tbody>
                     @foreach($sale->details as $index => $item)
+                        @php
+                            $returnedQty = (float) $sale->returns
+                                ->where('refund_method', '!=', 'none')
+                                ->flatMap(fn ($r) => $r->details)
+                                ->where('product_id', $item->product_id)
+                                ->sum('qty');
+                            $netQty = max(0, (float) $item->qty - $returnedQty);
+                        @endphp
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>
@@ -89,7 +97,14 @@
                                 <small class="text-muted">{{ $item->product?->category?->name ?? '' }}</small>
                             </td>
                             <td class="text-end">Rp {{ number_format($item->selling_price, 0, ',', '.') }}</td>
-                            <td class="text-center fw-bold">{{ rtrim(rtrim(number_format((float) $item->qty, 3, ',', '.'), '0'), ',') }} {{ $item->product?->unit?->short_name ?? '' }}</td>
+                            <td class="text-center fw-bold">
+                                {{ rtrim(rtrim(number_format((float) $item->qty, 3, ',', '.'), '0'), ',') }} {{ $item->product?->unit?->short_name ?? '' }}
+                                @if($returnedQty > 0)
+                                    <div class="small text-danger fw-semibold" style="font-size: 0.72rem;">
+                                        Diretur: {{ rtrim(rtrim(number_format($returnedQty, 3, ',', '.'), '0'), ',') }} (Netto: {{ rtrim(rtrim(number_format($netQty, 3, ',', '.'), '0'), ',') }})
+                                    </div>
+                                @endif
+                            </td>
                             <td class="text-end text-muted">
                                 {{ $item->discount_amount > 0 ? '-Rp ' . number_format($item->discount_amount, 0, ',', '.') : '-' }}
                             </td>
@@ -129,6 +144,16 @@
                         <span>Grand Total:</span>
                         <span>Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</span>
                     </div>
+                    @if($sale->total_returned > 0)
+                        <div class="list-group-item d-flex justify-content-between px-0 py-2 small text-danger fw-semibold">
+                            <span>Potongan Retur Barang:</span>
+                            <span>-Rp {{ number_format($sale->total_returned, 0, ',', '.') }}</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between px-0 py-2 fw-bold text-dark bg-light px-2 rounded">
+                            <span>Grand Total Bersih (Netto):</span>
+                            <span>Rp {{ number_format($sale->net_grand_total, 0, ',', '.') }}</span>
+                        </div>
+                    @endif
                     <div class="list-group-item d-flex justify-content-between px-0 py-2 small">
                         <span class="text-muted">Uang Dibayar:</span>
                         <span class="fw-semibold">Rp {{ number_format($sale->paid_amount, 0, ',', '.') }}</span>

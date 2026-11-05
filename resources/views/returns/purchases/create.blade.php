@@ -64,19 +64,28 @@
                         </thead>
                         <tbody>
                             @foreach($purchase->details as $index => $item)
+                                @php
+                                    $alreadyReturned = (int) \App\Models\PurchaseReturnDetail::whereHas('purchaseReturn', function ($q) use ($purchase) {
+                                        $q->where('purchase_id', $purchase->id);
+                                    })->where('product_id', $item->product_id)->sum('qty');
+                                    $maxReturnable = max(0, (int) $item->qty - $alreadyReturned);
+                                @endphp
                                 <tr>
                                     <td>
                                         <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id }}">
                                         <div class="fw-bold text-dark">{{ $item->product?->name }}</div>
                                         <small class="text-muted">SKU: {{ $item->product?->sku }}</small>
+                                        @if($alreadyReturned > 0)
+                                            <div class="small text-warning fw-semibold">Sudah diretur: {{ $alreadyReturned }} (Sisa: {{ $maxReturnable }})</div>
+                                        @endif
                                     </td>
                                     <td class="text-center">{{ $item->qty }}</td>
                                     <td class="text-end">Rp {{ number_format($item->cost_price, 0, ',', '.') }}</td>
                                     <td>
-                                        <input type="number" name="items[{{ $index }}][qty]" class="form-control form-control-sm text-center" min="0" max="{{ $item->qty }}" value="0">
+                                        <input type="number" name="items[{{ $index }}][qty]" class="form-control form-control-sm text-center" min="0" max="{{ $maxReturnable }}" value="{{ old("items.{$index}.qty", 0) }}" {{ $maxReturnable <= 0 ? 'readonly' : '' }}>
                                     </td>
                                     <td>
-                                        <input type="text" name="items[{{ $index }}][reason]" class="form-control form-control-sm" placeholder="Cacat pabrik, rusak, dll.">
+                                        <input type="text" name="items[{{ $index }}][reason]" class="form-control form-control-sm" value="{{ old("items.{$index}.reason") }}" placeholder="Cacat pabrik, rusak, dll.">
                                     </td>
                                 </tr>
                             @endforeach

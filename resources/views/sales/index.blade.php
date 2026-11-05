@@ -80,7 +80,15 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                <div class="fw-bold text-dark">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</div>
+                                @if($sale->total_returned > 0)
+                                    <div class="fw-bold text-dark">Rp {{ number_format($sale->net_grand_total, 0, ',', '.') }}</div>
+                                    <div class="small text-muted" style="font-size: 0.72rem;">
+                                        <del>Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</del>
+                                        <span class="text-danger fw-semibold">(-Retur Rp {{ number_format($sale->total_returned, 0, ',', '.') }})</span>
+                                    </div>
+                                @else
+                                    <div class="fw-bold text-dark">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</div>
+                                @endif
                                 @if($sale->remaining_debt > 0)
                                     <div class="small text-danger fw-semibold" style="font-size: 0.75rem;">
                                         Sisa Hutang: Rp {{ number_format($sale->remaining_debt, 0, ',', '.') }}
@@ -95,6 +103,13 @@
                             <td class="text-center">
                                 @if($sale->status === 'completed')
                                     <span class="badge bg-success-subtle text-success">Selesai</span>
+                                    @if($sale->total_returned > 0)
+                                        <div class="mt-1">
+                                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                                                {{ $sale->net_grand_total <= 0 ? 'Diretur Penuh' : 'Ada Retur' }}
+                                            </span>
+                                        </div>
+                                    @endif
                                 @elseif($sale->status === 'returned')
                                     <span class="badge bg-warning-subtle text-warning">Ada Retur</span>
                                 @else

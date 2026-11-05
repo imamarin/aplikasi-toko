@@ -406,5 +406,226 @@ class DebtSystemTest extends TestCase
         ]));
         $resPdf->assertStatus(200);
     }
+
+    public function test_sale_return_allows_returning_single_item_with_zero_qty_for_others_and_renders_show_page(): void
+    {
+        $admin = User::where('username', 'admin')->first();
+        $products = Product::take(2)->get();
+        $p1 = $products[0];
+        $p2 = $products[1];
+        $p1->update(['stock' => 50, 'selling_price' => 25000]);
+        $p2->update(['stock' => 50, 'selling_price' => 40000]);
+
+        $this->actingAs($admin)->post(route('cash-shifts.open'), [
+            'opening_cash' => '100000',
+            'notes' => 'Shift Test Retur',
+        ]);
+
+        // Create a sale with 2 items
+        $resCheckout = $this->actingAs($admin)->postJson(route('pos.checkout'), [
+            'items' => [
+                [
+                    'product_id' => $p1->id,
+                    'qty' => 2,
+                    'selling_price' => 25000,
+                    'subtotal' => 50000,
+                    'discount' => 0,
+                ],
+                [
+                    'product_id' => $p2->id,
+                    'qty' => 3,
+                    'selling_price' => 40000,
+                    'subtotal' => 120000,
+                    'discount' => 0,
+                ],
+            ],
+            'customer_id' => null,
+            'paid_amount' => 170000,
+            'payment_method' => 'cash',
+        ]);
+        $resCheckout->assertStatus(200);
+        $saleId = $resCheckout->json('sale_id');
+
+        // Submit Sale Return: return 1 qty of Product 1, and 0 qty of Product 2
+        $resReturn = $this->actingAs($admin)->post(route('returns.sales.store'), [
+            'sale_id' => $saleId,
+            'refund_method' => 'cash',
+            'notes' => 'Retur sebagian item saja',
+            'items' => [
+                [
+                    'product_id' => $p1->id,
+                    'qty' => 1,
+                    'reason' => 'Kemasan penyok',
+                ],
+                [
+                    'product_id' => $p2->id,
+                    'qty' => 0,
+                    'reason' => null,
+                ],
+            ],
+        ]);
+
+        $saleReturn = \App\Models\SaleReturn::latest('id')->first();
+        $this->assertNotNull($saleReturn);
+        $this->assertEquals(1, $saleReturn->details()->count());
+        $this->assertEquals(25000, (float) $saleReturn->total_refund);
+
+        $resReturn->assertRedirect(route('returns.sales.show', $saleReturn->id));
+
+        // Follow redirect to GET /returns/sales/{saleReturn} and verify no null format() error
+        $resShow = $this->actingAs($admin)->get(route('returns.sales.show', $saleReturn->id));
+        $resShow->assertStatus(200);
+        $resShow->assertSee($saleReturn->return_number);
+        $resShow->assertSee($saleReturn->return_date->format('d/m/Y H:i'));
+        $resShow->assertSee($p1->name);
+    }
+
+    public function test_sale_return_on_debt_sale_reduces_customer_debt_and_adjusts_income_and_profit_loss_reports(): void
+    {
+        $admin = User::where('username', 'admin')->first();
+        $customer = Customer::first();
+        $product = Product::first();
+        $product->update([
+            'stock' => 100,
+            'cost_price' => 60000,
+            'selling_price' => 100000,
+        ]);
+
+        $this->actingAs($admin)->post(route('cash-shifts.open'), [
+            'opening_cash' => '100000',
+            'notes' => 'Shift Test Retur Hutang',
+        ]);
+
+        // Create Debt Sale: 5 pcs @ Rp 100.000 = Rp 500.000 (HPP: Rp 300.000, Laba Kotor: Rp 200.000)
+        // DP Cash = Rp 100.000 -> Initial Remaining Debt (Credit) = Rp 400.000
+        $resDebt = $this->actingAs($admin)->postJson(route('pos.checkout'), [
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 5,
+                'selling_price' => 100000,
+                'subtotal' => 500000,
+                'discount' => 0,
+            ]],
+            'customer_id' => $customer->id,
+            'paid_amount' => 100000,
+            'payment_method' => 'debt',
+            'dp_payment_method' => 'cash',
+        ]);
+        $resDebt->assertStatus(200);
+        $sale = Sale::find($resDebt->json('sale_id'));
+        $this->assertEquals(400000, $sale->remaining_debt);
+
+        // Return 1 pcs (Rp 100.000 selling price, Rp 60.000 cost price)
+        $resReturn = $this->actingAs($admin)->post(route('returns.sales.store'), [
+            'sale_id' => $sale->id,
+            'refund_method' => 'credit',
+            'notes' => 'Retur 1 pcs potong hutang',
+            'items' => [[
+                'product_id' => $product->id,
+                'qty' => 1,
+                'reason' => 'Barang cacat',
+            ]],
+        ]);
+        $resReturn->assertRedirect();
+
+        // 1. Verify remaining debt on Sale dropped from 400.000 to 300.000
+        $sale->refresh();
+        $this->assertEquals(300000, $sale->remaining_debt);
+        $this->assertEquals('partial', $sale->payment_status);
+
+        // 2. Verify Income Report reflects net values after return:
+        // Penjualan: 500.000 - 100.000 = 400.000
+        // Cash (DP): 100.000
+        // Credit: 400.000 - 100.000 = 300.000
+        // Modal: 300.000 - 60.000 = 240.000
+        // Laba Kotor: 400.000 - 240.000 = 160.000
+        $reportService = app(\App\Services\ReportService::class);
+        $incomeReport = $reportService->getIncomeReport(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(400000, $incomeReport['summary']['total_penjualan']);
+        $this->assertEquals(100000, $incomeReport['summary']['total_pembayaran_real_kios']);
+        $this->assertEquals(100000, $incomeReport['summary']['total_cash']);
+        $this->assertEquals(300000, $incomeReport['summary']['total_credit']);
+        $this->assertEquals(240000, $incomeReport['summary']['total_modal']);
+        $this->assertEquals(160000, $incomeReport['summary']['total_laba_kotor']);
+
+        // 3. Verify Profit & Loss Report reflects net revenue, net COGS, and net gross profit:
+        $plReport = $reportService->getProfitLossReport(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(100000, $plReport['total_returns']);
+        $this->assertEquals(400000, $plReport['total_revenue']);
+        $this->assertEquals(240000, $plReport['total_cogs']);
+        $this->assertEquals(160000, $plReport['gross_profit']);
+
+        // 4. Verify all other Sales Reports (Daily Sales, By Product, By Turnover, By Customer, By Cashier) match 100%
+        $salesReport = $reportService->getSalesReport(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(100000, $salesReport['summary']['total_returns']);
+        $this->assertEquals(400000, $salesReport['summary']['total_grand_total']);
+
+        $byProductReport = $reportService->getSalesByProductReport(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(4, $byProductReport['summary']['overall_qty']);
+        $this->assertEquals(1, $byProductReport['summary']['overall_returned_qty']);
+        $this->assertEquals(400000, $byProductReport['summary']['overall_sales']);
+        $this->assertEquals(240000, $byProductReport['summary']['overall_cogs']);
+        $this->assertEquals(160000, $byProductReport['summary']['overall_profit']);
+
+        $byTurnoverReport = $reportService->getSalesByTurnoverReport(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(100000, $byTurnoverReport['summary']['total_returns']);
+        $this->assertEquals(400000, $byTurnoverReport['summary']['total_grand_total']);
+
+        $byCustomerReport = $reportService->getSalesByCustomerReport(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(100000, $byCustomerReport['summary']['total_returns']);
+        $this->assertEquals(400000, $byCustomerReport['summary']['total_spent']);
+
+        $byCashierReport = $reportService->getSalesByCashierReport(now()->startOfDay(), now()->endOfDay());
+        $this->assertEquals(100000, $byCashierReport['summary']['overall_returns']);
+        $this->assertEquals(400000, $byCashierReport['summary']['overall_turnover']);
+    }
+
+    public function test_product_barcode_printing_single_and_bulk(): void
+    {
+        $admin = User::where('username', 'admin')->first();
+        $products = Product::take(2)->get();
+        $p1 = $products[0];
+        $p2 = $products[1];
+
+        $p1->update([
+            'sku' => 'SKU-BC-01',
+            'barcode' => '8991234567890',
+            'name' => 'Kopi Susu Barcode',
+        ]);
+
+        $p2->update([
+            'sku' => 'SKU-BC-02',
+            'barcode' => null,
+            'name' => 'Teh Tarik Tanpa Barcode',
+        ]);
+
+        // 1. Test single product barcode page via GET
+        $resSingle = $this->actingAs($admin)->get(route('products.barcode', ['product_id' => $p1->id]));
+        $resSingle->assertStatus(200);
+        $resSingle->assertSee('Kopi Susu Barcode');
+        $resSingle->assertSee('8991234567890');
+        $resSingle->assertSee('<svg', false);
+
+        // 2. Test bulk product barcode configuration via POST
+        $resBulk = $this->actingAs($admin)->post(route('products.barcode'), [
+            'configured' => 1,
+            'product_ids' => [$p1->id, $p2->id],
+            'quantities' => [
+                $p1->id => 6,
+                $p2->id => 3,
+            ],
+            'paper_size' => 'thermal_2',
+            'show_store_name' => 1,
+            'show_product_name' => 1,
+            'show_price' => 1,
+            'show_code' => 1,
+        ]);
+        $resBulk->assertStatus(200);
+        $resBulk->assertSee('Kopi Susu Barcode');
+        $resBulk->assertSee('Teh Tarik Tanpa Barcode');
+        $resBulk->assertSee('8991234567890');
+        $resBulk->assertSee('SKU-BC-02'); // Fallback to SKU when barcode is null
+        $resBulk->assertSee('9 Stiker Label');
+    }
 }
 

@@ -40,13 +40,29 @@
                         <small class="text-muted d-block">Nota Penjualan Asal</small>
                         <div class="fw-bold fs-5 text-primary">{{ $sale->invoice_number }}</div>
                         <div class="small text-muted">Pelanggan: {{ $sale->customer?->name ?? 'Umum (Walk-in)' }}</div>
+                        @if($sale->remaining_debt > 0)
+                            <div class="mt-2">
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                                    Sisa Hutang Nota: Rp {{ number_format($sale->remaining_debt, 0, ',', '.') }}
+                                </span>
+                                <div class="small text-danger mt-1">
+                                    <i class="bi bi-info-circle me-1"></i> Nilai retur akan otomatis memotong sisa hutang pelanggan terlebih dahulu.
+                                </div>
+                            </div>
+                        @endif
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Metode Pengembalian Dana (Refund) <span class="text-danger">*</span></label>
                         <select name="refund_method" class="form-select" required>
-                            <option value="cash">Tunai Langsung (Potong Kas Laci Kasir)</option>
-                            <option value="credit">Kredit Toko / Saldo Member</option>
-                            <option value="none">Tanpa Refund Uang (Tukar Barang)</option>
+                            @if($sale->remaining_debt > 0)
+                                <option value="credit" selected>Potong Piutang Pelanggan / Kredit Toko</option>
+                                <option value="cash">Potong Piutang + Lebihnya Tunai (Kas Laci)</option>
+                                <option value="none">Tanpa Refund Uang (Tukar Barang)</option>
+                            @else
+                                <option value="cash">Tunai Langsung (Potong Kas Laci Kasir)</option>
+                                <option value="credit">Kredit Toko / Saldo Member</option>
+                                <option value="none">Tanpa Refund Uang (Tukar Barang)</option>
+                            @endif
                         </select>
                     </div>
                     <div class="col-12">
@@ -72,19 +88,28 @@
                         </thead>
                         <tbody>
                             @foreach($sale->details as $index => $item)
+                                @php
+                                    $alreadyReturned = (int) \App\Models\SaleReturnDetail::whereHas('saleReturn', function ($q) use ($sale) {
+                                        $q->where('sale_id', $sale->id);
+                                    })->where('product_id', $item->product_id)->sum('qty');
+                                    $maxReturnable = max(0, (int) $item->qty - $alreadyReturned);
+                                @endphp
                                 <tr>
                                     <td>
                                         <input type="hidden" name="items[{{ $index }}][product_id]" value="{{ $item->product_id }}">
                                         <div class="fw-bold text-dark">{{ $item->product_name }}</div>
                                         <small class="text-muted">SKU: {{ $item->product?->sku }}</small>
+                                        @if($alreadyReturned > 0)
+                                            <div class="small text-warning fw-semibold">Sudah diretur: {{ $alreadyReturned }} (Sisa: {{ $maxReturnable }})</div>
+                                        @endif
                                     </td>
                                     <td class="text-center">{{ $item->qty }}</td>
                                     <td class="text-end">Rp {{ number_format($item->selling_price, 0, ',', '.') }}</td>
                                     <td>
-                                        <input type="number" name="items[{{ $index }}][qty]" class="form-control form-control-sm text-center" min="0" max="{{ $item->qty }}" value="0">
+                                        <input type="number" name="items[{{ $index }}][qty]" class="form-control form-control-sm text-center" min="0" max="{{ $maxReturnable }}" value="{{ old("items.{$index}.qty", 0) }}" {{ $maxReturnable <= 0 ? 'readonly' : '' }}>
                                     </td>
                                     <td>
-                                        <input type="text" name="items[{{ $index }}][reason]" class="form-control form-control-sm" placeholder="Kemasan rusak, salah beli, dll.">
+                                        <input type="text" name="items[{{ $index }}][reason]" class="form-control form-control-sm" value="{{ old("items.{$index}.reason") }}" placeholder="Kemasan rusak, salah beli, dll.">
                                     </td>
                                 </tr>
                             @endforeach

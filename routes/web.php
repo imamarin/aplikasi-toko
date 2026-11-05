@@ -71,6 +71,7 @@ Route::middleware('auth')->group(function () {
 
     // Inventori & Produk
     Route::get('/products/export/excel', [ProductController::class, 'exportExcel'])->name('products.export.excel');
+    Route::match(['get', 'post'], '/products/print-barcode', [ProductController::class, 'printBarcode'])->name('products.barcode');
     Route::resource('products', ProductController::class);
     Route::resource('categories', CategoryController::class);
     Route::resource('units', UnitController::class);
@@ -103,8 +104,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/{customer}/pay', [ReceivableController::class, 'storePayment'])->name('pay');
     });
 
-    Route::resource('returns/sales', SaleReturnController::class)->names('returns.sales');
-    Route::resource('returns/purchases', PurchaseReturnController::class)->names('returns.purchases');
+    Route::resource('returns/sales', SaleReturnController::class)
+        ->names('returns.sales')
+        ->parameters(['sales' => 'saleReturn']);
+    Route::resource('returns/purchases', PurchaseReturnController::class)
+        ->names('returns.purchases')
+        ->parameters(['purchases' => 'purchaseReturn']);
 
     // Laporan & Rekapitulasi
     Route::prefix('reports')->name('reports.')->group(function () {

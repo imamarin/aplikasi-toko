@@ -3,10 +3,14 @@
 namespace App\Services;
 
 use App\Models\CashShift;
+use App\Models\PayablePayment;
+use App\Models\PayablePaymentAllocation;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use App\Models\PurchaseReturnDetail;
+use App\Models\ReceivablePayment;
+use App\Models\ReceivablePaymentAllocation;
 use App\Models\Sale;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnDetail;
@@ -18,7 +22,8 @@ class ReturnService
 {
     public function __construct(
         protected StockService $stockService,
-        protected CashService $cashService
+        protected CashService $cashService,
+        protected DebtService $debtService
     ) {}
 
     public function generateSaleReturnNumber(): string
@@ -60,7 +65,7 @@ class ReturnService
 
             foreach ($items as $item) {
                 $productId = (int) $item['product_id'];
-                $qty = (int) ($item['qty'] ?? 1);
+                $qty = (int) ($item['qty'] ?? 0);
                 $reason = $item['reason'] ?? 'Barang cacat/tukar';
 
                 if ($qty <= 0) {
@@ -134,14 +139,51 @@ class ReturnService
                 );
             }
 
-            // Deduct cash from register if refunded in cash
-            if ($refundMethod === 'cash' && $totalRefund > 0) {
+            // 1. Jika nota penjualan masih memiliki sisa piutang (hutang pelanggan), otomatis potong sisa hutang terlebih dahulu
+            $remainingDebt = max(0.0, (float) $sale->grand_total - (float) $sale->paid_amount);
+            $debtReduced = 0.0;
+
+            if ($refundMethod !== 'none' && $remainingDebt > 0 && $totalRefund > 0) {
+                $debtReduced = min((float) $totalRefund, $remainingDebt);
+
+                if ($sale->customer_id) {
+                    $paymentNumber = $this->debtService->generateReceivablePaymentNumber();
+                    $receivablePayment = ReceivablePayment::create([
+                        'payment_number' => $paymentNumber,
+                        'customer_id' => $sale->customer_id,
+                        'user_id' => $userId,
+                        'cash_shift_id' => $currentShift?->id,
+                        'payment_date' => Carbon::now(),
+                        'total_paid' => $debtReduced,
+                        'payment_method' => 'return',
+                        'notes' => "Potongan Retur Penjualan #{$returnNumber} (Nota #{$sale->invoice_number})",
+                    ]);
+
+                    ReceivablePaymentAllocation::create([
+                        'receivable_payment_id' => $receivablePayment->id,
+                        'sale_id' => $sale->id,
+                        'amount' => $debtReduced,
+                    ]);
+                }
+
+                $newPaidAmount = round((float) $sale->paid_amount + $debtReduced, 2);
+                $newStatus = $newPaidAmount >= (float) $sale->grand_total ? 'paid' : 'partial';
+
+                $sale->update([
+                    'paid_amount' => $newPaidAmount,
+                    'payment_status' => $newStatus,
+                ]);
+            }
+
+            // 2. Kurangi kas laci kasir hanya sebesar sisa nilai refund setelah memotong hutang (jika metode = cash)
+            $cashRefundAmount = max(0.0, round((float) $totalRefund - $debtReduced, 2));
+            if ($refundMethod === 'cash' && $cashRefundAmount > 0) {
                 $this->cashService->recordTransaction(
                     cashShiftId: $currentShift?->id,
                     userId: $userId,
                     type: 'out',
                     category: 'refund',
-                    amount: $totalRefund,
+                    amount: $cashRefundAmount,
                     refType: SaleReturn::class,
                     refId: $saleReturn->id,
                     description: "Refund Kas Retur Penjualan #{$returnNumber}"
@@ -173,7 +215,7 @@ class ReturnService
 
             foreach ($items as $item) {
                 $productId = (int) $item['product_id'];
-                $qty = (int) ($item['qty'] ?? 1);
+                $qty = (int) ($item['qty'] ?? 0);
                 $reason = $item['reason'] ?? 'Rusak/kadaluarsa/retur supplier';
 
                 if ($qty <= 0) {
@@ -183,6 +225,15 @@ class ReturnService
                 $purchaseDetail = $purchase->details->firstWhere('product_id', $productId);
                 if (!$purchaseDetail) {
                     throw new Exception("Produk ID {$productId} tidak ditemukan dalam PO #{$purchase->purchase_number}.");
+                }
+
+                $alreadyReturned = (int) PurchaseReturnDetail::whereHas('purchaseReturn', function ($q) use ($purchase) {
+                    $q->where('purchase_id', $purchase->id);
+                })->where('product_id', $productId)->sum('qty');
+
+                $maxAllowed = $purchaseDetail->qty - $alreadyReturned;
+                if ($qty > $maxAllowed) {
+                    throw new Exception("Jumlah retur untuk produk ini melebihi batas pembelian (maksimal: {$maxAllowed}).");
                 }
 
                 $costPrice = (float) $purchaseDetail->cost_price;
@@ -196,6 +247,10 @@ class ReturnService
                     'subtotal' => $subtotal,
                     'reason' => $reason,
                 ];
+            }
+
+            if (empty($itemsToProcess)) {
+                throw new Exception('Tidak ada item valid yang dipilih untuk retur pembelian.');
             }
 
             $purchaseReturn = PurchaseReturn::create([
@@ -230,6 +285,40 @@ class ReturnService
                     refId: $purchaseReturn->id,
                     notes: "Retur Pembelian ke Supplier #{$returnNumber}"
                 );
+            }
+
+            // Jika faktur PO masih memiliki sisa hutang ke supplier, otomatis potong sisa hutang PO tersebut
+            $remainingPayable = max(0.0, (float) $purchase->grand_total - (float) $purchase->paid_amount);
+            if ($remainingPayable > 0 && $totalAmount > 0) {
+                $payableReduced = min((float) $totalAmount, $remainingPayable);
+
+                if ($purchase->supplier_id) {
+                    $paymentNumber = $this->debtService->generatePayablePaymentNumber();
+                    $payablePayment = PayablePayment::create([
+                        'payment_number' => $paymentNumber,
+                        'supplier_id' => $purchase->supplier_id,
+                        'user_id' => $userId,
+                        'cash_shift_id' => null,
+                        'payment_date' => Carbon::now(),
+                        'total_paid' => $payableReduced,
+                        'payment_method' => 'return',
+                        'notes' => "Potongan Retur Pembelian #{$returnNumber} (PO #{$purchase->purchase_number})",
+                    ]);
+
+                    PayablePaymentAllocation::create([
+                        'payable_payment_id' => $payablePayment->id,
+                        'purchase_id' => $purchase->id,
+                        'amount' => $payableReduced,
+                    ]);
+                }
+
+                $newPaidAmount = round((float) $purchase->paid_amount + $payableReduced, 2);
+                $newStatus = $newPaidAmount >= (float) $purchase->grand_total ? 'paid' : 'partial';
+
+                $purchase->update([
+                    'paid_amount' => $newPaidAmount,
+                    'payment_status' => $newStatus,
+                ]);
             }
 
             return $purchaseReturn->load(['details.product', 'supplier']);

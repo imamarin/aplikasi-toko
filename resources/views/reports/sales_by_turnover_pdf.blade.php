@@ -55,14 +55,15 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 5%;" class="text-center">#</th>
-                <th style="width: 18%;">Tanggal Penjualan</th>
-                <th style="width: 12%;" class="text-center">Jumlah Nota</th>
-                <th style="width: 14%;" class="text-right">Subtotal Produk</th>
-                <th style="width: 11%;" class="text-right">Diskon</th>
-                <th style="width: 10%;" class="text-right">Ongkir</th>
-                <th style="width: 10%;" class="text-right">Pajak</th>
-                <th style="width: 14%;" class="text-right">Grand Total</th>
+                <th style="width: 4%;" class="text-center">#</th>
+                <th style="width: 15%;">Tanggal Penjualan</th>
+                <th style="width: 10%;" class="text-center">Jumlah Nota</th>
+                <th style="width: 12%;" class="text-right">Subtotal Produk</th>
+                <th style="width: 10%;" class="text-right">Diskon</th>
+                <th style="width: 10%;" class="text-right">Retur</th>
+                <th style="width: 8%;" class="text-right">Ongkir</th>
+                <th style="width: 8%;" class="text-right">Pajak</th>
+                <th style="width: 13%;" class="text-right">Grand Total Bersih</th>
                 <th style="width: 10%;" class="text-right">AOV / Nota</th>
             </tr>
         </thead>
@@ -78,6 +79,7 @@
                     <td class="text-center">{{ $t->total_transactions }} Nota</td>
                     <td class="text-right">Rp {{ number_format($t->total_subtotal, 0, ',', '.') }}</td>
                     <td class="text-right">{{ $t->total_discount > 0 ? '-Rp ' . number_format($t->total_discount, 0, ',', '.') : '-' }}</td>
+                    <td class="text-right" style="color: #b91c1c;">{{ ($t->total_returns ?? 0) > 0 ? '-Rp ' . number_format($t->total_returns, 0, ',', '.') : '-' }}</td>
                     <td class="text-right">{{ $t->total_shipping > 0 ? '+Rp ' . number_format($t->total_shipping, 0, ',', '.') : '-' }}</td>
                     <td class="text-right">{{ $t->total_tax > 0 ? 'Rp ' . number_format($t->total_tax, 0, ',', '.') : '-' }}</td>
                     <td class="text-right fw-bold">Rp {{ number_format($t->total_grand_total, 0, ',', '.') }}</td>
@@ -85,7 +87,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="9" class="text-center" style="padding: 15px; color: #888;">Belum ada perolehan omset pada periode ini.</td>
+                    <td colspan="10" class="text-center" style="padding: 15px; color: #888;">Belum ada perolehan omset pada periode ini.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -95,6 +97,7 @@
                 <td class="text-center">{{ number_format($summary['total_transactions'], 0, ',', '.') }} Nota</td>
                 <td class="text-right">Rp {{ number_format($summary['total_subtotal'], 0, ',', '.') }}</td>
                 <td class="text-right">-Rp {{ number_format($summary['total_discount'], 0, ',', '.') }}</td>
+                <td class="text-right" style="color: #b91c1c;">-Rp {{ number_format($summary['total_returns'] ?? 0, 0, ',', '.') }}</td>
                 <td class="text-right">+Rp {{ number_format($summary['total_shipping'], 0, ',', '.') }}</td>
                 <td class="text-right">Rp {{ number_format($summary['total_tax'], 0, ',', '.') }}</td>
                 <td class="text-right">Rp {{ number_format($summary['total_grand_total'], 0, ',', '.') }}</td>

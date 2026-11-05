@@ -39,11 +39,15 @@
                                 </a>
                             </td>
                             <td>
-                                <a href="{{ route('sales.show', $ret->sale_id) }}" class="font-monospace text-secondary text-decoration-none">
-                                    {{ $ret->sale?->invoice_number }}
-                                </a>
+                                @if($ret->sale_id)
+                                    <a href="{{ route('sales.show', $ret->sale_id) }}" class="font-monospace text-secondary text-decoration-none">
+                                        {{ $ret->sale?->invoice_number ?? '#' . $ret->sale_id }}
+                                    </a>
+                                @else
+                                    -
+                                @endif
                             </td>
-                            <td>{{ $ret->return_date->format('d/m/Y H:i') }}</td>
+                            <td>{{ $ret->return_date?->format('d/m/Y H:i') ?? $ret->created_at?->format('d/m/Y H:i') ?? '-' }}</td>
                             <td>{{ $ret->sale?->customer?->name ?? 'Umum' }}</td>
                             <td>
                                 <span class="badge bg-secondary-subtle text-secondary text-uppercase">{{ $ret->refund_method }}</span>

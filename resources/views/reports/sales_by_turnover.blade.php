@@ -133,14 +133,15 @@
                 <thead class="table-light small">
                     <tr>
                         <th style="width: 4%;" class="text-center">#</th>
-                        <th style="width: 14%;">Tanggal</th>
-                        <th style="width: 11%;" class="text-center">Jumlah Nota</th>
-                        <th style="width: 13%;" class="text-end">Subtotal Produk</th>
-                        <th style="width: 11%;" class="text-end">Potongan Diskon</th>
-                        <th style="width: 10%;" class="text-end">Ongkir</th>
-                        <th style="width: 10%;" class="text-end">Pajak (PPN)</th>
-                        <th style="width: 14%;" class="text-end">Grand Total</th>
-                        <th style="width: 13%;" class="text-end">Rata-rata / Nota</th>
+                        <th style="width: 13%;">Tanggal</th>
+                        <th style="width: 10%;" class="text-center">Jumlah Nota</th>
+                        <th style="width: 12%;" class="text-end">Subtotal Produk</th>
+                        <th style="width: 10%;" class="text-end">Diskon</th>
+                        <th style="width: 10%;" class="text-end">Retur</th>
+                        <th style="width: 9%;" class="text-end">Ongkir</th>
+                        <th style="width: 9%;" class="text-end">Pajak (PPN)</th>
+                        <th style="width: 12%;" class="text-end">Grand Total Bersih</th>
+                        <th style="width: 11%;" class="text-end">Rata-rata / Nota</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -158,6 +159,7 @@
                             <td class="text-center fw-semibold">{{ $t->total_transactions }} Nota</td>
                             <td class="text-end">Rp {{ number_format($t->total_subtotal, 0, ',', '.') }}</td>
                             <td class="text-end text-danger">{{ $t->total_discount > 0 ? '-Rp ' . number_format($t->total_discount, 0, ',', '.') : '-' }}</td>
+                            <td class="text-end text-danger">{{ ($t->total_returns ?? 0) > 0 ? '-Rp ' . number_format($t->total_returns, 0, ',', '.') : '-' }}</td>
                             <td class="text-end text-info">{{ $t->total_shipping > 0 ? '+Rp ' . number_format($t->total_shipping, 0, ',', '.') : '-' }}</td>
                             <td class="text-end text-muted">{{ $t->total_tax > 0 ? 'Rp ' . number_format($t->total_tax, 0, ',', '.') : '-' }}</td>
                             <td class="text-end fw-bold text-primary">Rp {{ number_format($t->total_grand_total, 0, ',', '.') }}</td>
@@ -165,7 +167,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="text-center py-5 text-muted">Belum ada perolehan omset pada periode ini.</td>
+                            <td colspan="10" class="text-center py-5 text-muted">Belum ada perolehan omset pada periode ini.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -175,6 +177,7 @@
                         <td class="text-center">{{ number_format($summary['total_transactions'], 0, ',', '.') }} Nota</td>
                         <td class="text-end">Rp {{ number_format($summary['total_subtotal'], 0, ',', '.') }}</td>
                         <td class="text-end text-danger">-Rp {{ number_format($summary['total_discount'], 0, ',', '.') }}</td>
+                        <td class="text-end text-danger">-Rp {{ number_format($summary['total_returns'] ?? 0, 0, ',', '.') }}</td>
                         <td class="text-end text-info">+Rp {{ number_format($summary['total_shipping'], 0, ',', '.') }}</td>
                         <td class="text-end">Rp {{ number_format($summary['total_tax'], 0, ',', '.') }}</td>
                         <td class="text-end text-primary">Rp {{ number_format($summary['total_grand_total'], 0, ',', '.') }}</td>

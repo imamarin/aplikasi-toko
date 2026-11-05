@@ -104,6 +104,16 @@
             <td>Grand Total:</td>
             <td class="text-right">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</td>
         </tr>
+        @if($sale->total_returned > 0)
+            <tr>
+                <td style="color: #b91c1c;">Potongan Retur:</td>
+                <td class="text-right" style="color: #b91c1c;">-Rp {{ number_format($sale->total_returned, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="total-highlight">
+                <td>Grand Total Bersih:</td>
+                <td class="text-right">Rp {{ number_format($sale->net_grand_total, 0, ',', '.') }}</td>
+            </tr>
+        @endif
         <tr>
             <td>Bayar:</td>
             <td class="text-right">Rp {{ number_format($sale->paid_amount, 0, ',', '.') }}</td>

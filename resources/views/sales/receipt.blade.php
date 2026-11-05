@@ -126,6 +126,16 @@
             <td>GRAND TOTAL:</td>
             <td class="text-end">Rp {{ number_format($sale->grand_total, 0, ',', '.') }}</td>
         </tr>
+        @if($sale->total_returned > 0)
+            <tr>
+                <td>Potongan Retur:</td>
+                <td class="text-end">-{{ number_format($sale->total_returned, 0, ',', '.') }}</td>
+            </tr>
+            <tr class="fw-bold">
+                <td>TOTAL BERSIH:</td>
+                <td class="text-end">Rp {{ number_format($sale->net_grand_total, 0, ',', '.') }}</td>
+            </tr>
+        @endif
         <tr>
             @if($sale->payment_method === 'debt')
                 @if($sale->paid_amount > 0)

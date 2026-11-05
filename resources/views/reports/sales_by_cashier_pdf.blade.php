@@ -55,14 +55,15 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 5%;" class="text-center">#</th>
-                <th style="width: 25%;">Nama Kasir / Petugas</th>
-                <th style="width: 14%;" class="text-center">Jabatan / Role</th>
-                <th style="width: 14%;" class="text-center">Jumlah Transaksi</th>
-                <th style="width: 14%;" class="text-right">Subtotal Kotor</th>
-                <th style="width: 12%;" class="text-right">Diskon</th>
-                <th style="width: 16%;" class="text-right">Total Omset Bersih</th>
-                <th style="width: 10%;" class="text-right">Kontribusi</th>
+                <th style="width: 4%;" class="text-center">#</th>
+                <th style="width: 21%;">Nama Kasir / Petugas</th>
+                <th style="width: 11%;" class="text-center">Jabatan / Role</th>
+                <th style="width: 11%;" class="text-center">Jumlah Transaksi</th>
+                <th style="width: 13%;" class="text-right">Subtotal Kotor</th>
+                <th style="width: 10%;" class="text-right">Diskon</th>
+                <th style="width: 10%;" class="text-right">Retur (-)</th>
+                <th style="width: 12%;" class="text-right">Total Omset Bersih</th>
+                <th style="width: 8%;" class="text-right">Kontribusi</th>
             </tr>
         </thead>
         <tbody>
@@ -77,12 +78,13 @@
                     <td class="text-center">{{ number_format($c->total_transactions, 0, ',', '.') }} Nota</td>
                     <td class="text-right">Rp {{ number_format($c->total_subtotal, 0, ',', '.') }}</td>
                     <td class="text-right">{{ $c->total_discount > 0 ? '-Rp ' . number_format($c->total_discount, 0, ',', '.') : '-' }}</td>
+                    <td class="text-right" style="color: #b91c1c;">{{ ($c->total_returns ?? 0) > 0 ? '-Rp ' . number_format($c->total_returns, 0, ',', '.') : '-' }}</td>
                     <td class="text-right fw-bold">Rp {{ number_format($c->total_grand_total, 0, ',', '.') }}</td>
                     <td class="text-right">{{ number_format($c->contribution_percentage, 1) }}%</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="text-center" style="padding: 15px; color: #888;">Belum ada catatan penjualan per kasir pada periode ini.</td>
+                    <td colspan="9" class="text-center" style="padding: 15px; color: #888;">Belum ada catatan penjualan per kasir pada periode ini.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -93,6 +95,7 @@
                     <td class="text-center">{{ number_format($summary['overall_transactions'], 0, ',', '.') }} Nota</td>
                     <td class="text-right">Rp {{ number_format($cashiers->sum('total_subtotal'), 0, ',', '.') }}</td>
                     <td class="text-right">-Rp {{ number_format($cashiers->sum('total_discount'), 0, ',', '.') }}</td>
+                    <td class="text-right" style="color: #b91c1c;">-Rp {{ number_format($summary['overall_returns'] ?? 0, 0, ',', '.') }}</td>
                     <td class="text-right">Rp {{ number_format($summary['overall_turnover'], 0, ',', '.') }}</td>
                     <td class="text-right">100.0%</td>
                 </tr>

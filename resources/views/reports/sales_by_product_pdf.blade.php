@@ -72,7 +72,14 @@
                     <td style="font-family: monospace;">{{ $p->sku }}</td>
                     <td class="fw-bold">{{ $p->product_name }}</td>
                     <td>{{ $p->category_name }}</td>
-                    <td class="text-center fw-bold">{{ number_format($p->total_qty, 0, ',', '.') }} {{ $p->unit_name }}</td>
+                    <td class="text-center fw-bold">
+                        {{ number_format($p->total_qty, 0, ',', '.') }} {{ $p->unit_name }}
+                        @if(($p->returned_qty ?? 0) > 0)
+                            <div style="font-size: 7.5px; color: #b91c1c; font-weight: normal;">
+                                ({{ number_format($p->gross_qty, 0, ',', '.') }} - {{ number_format($p->returned_qty, 0, ',', '.') }} retur)
+                            </div>
+                        @endif
+                    </td>
                     <td class="text-right">Rp {{ number_format($p->total_sales, 0, ',', '.') }}</td>
                     <td class="text-right">Rp {{ number_format($p->total_cogs, 0, ',', '.') }}</td>
                     <td class="text-right fw-bold" style="color: #047857;">

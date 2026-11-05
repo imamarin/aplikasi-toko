@@ -6,7 +6,9 @@ use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Unit;
+use App\Services\BarcodeService;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -181,5 +183,67 @@ class ProductController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Halaman konfigurasi & cetak label barcode produk (satuan maupun massal)
+     */
+    public function printBarcode(Request $request)
+    {
+        $allProducts = Product::where('status', true)
+            ->orderBy('name')
+            ->get();
+
+        $quantities = $request->input('quantities', []);
+        $productIds = $request->input('product_ids', []);
+
+        if ($request->filled('product_id')) {
+            $singleId = (int) $request->input('product_id');
+            if (! in_array($singleId, $productIds)) {
+                $productIds[] = $singleId;
+            }
+        }
+
+        if (empty($productIds) && ! empty($quantities)) {
+            $productIds = array_keys(array_filter($quantities, fn ($qty) => (int) $qty > 0));
+        }
+
+        $defaultQty = max(1, (int) $request->input('default_qty', 4));
+        $paperSize = $request->input('paper_size', 'grid_4');
+        $showStoreName = $request->has('configured') ? $request->boolean('show_store_name') : true;
+        $showProductName = $request->has('configured') ? $request->boolean('show_product_name') : true;
+        $showPrice = $request->has('configured') ? $request->boolean('show_price') : true;
+        $showCode = $request->has('configured') ? $request->boolean('show_code') : true;
+
+        $selectedProducts = collect();
+        if (! empty($productIds)) {
+            $selectedProducts = Product::whereIn('id', $productIds)->orderBy('name')->get();
+        }
+
+        $printItems = $selectedProducts->map(function (Product $product) use ($quantities, $defaultQty) {
+            $qty = isset($quantities[$product->id]) ? max(0, (int) $quantities[$product->id]) : $defaultQty;
+            $code = $product->barcode ?: $product->sku;
+
+            return [
+                'product' => $product,
+                'qty' => $qty,
+                'code' => $code,
+                'svg' => BarcodeService::generateSvg($code, 40, 1.35),
+            ];
+        })->filter(fn ($item) => $item['qty'] > 0)->values();
+
+        $storeName = Setting::get('store_name', 'Kasir POS');
+
+        return view('products.barcode', compact(
+            'allProducts',
+            'printItems',
+            'paperSize',
+            'showStoreName',
+            'showProductName',
+            'showPrice',
+            'showCode',
+            'defaultQty',
+            'storeName'
+        ));
     }
 }

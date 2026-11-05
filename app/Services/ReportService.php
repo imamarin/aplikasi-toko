@@ -9,6 +9,7 @@ use App\Models\ReceivablePayment;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\SaleReturn;
+use App\Models\SaleReturnDetail;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -60,7 +61,7 @@ class ReportService
         $userId = !empty($userId) ? (int) $userId : null;
         $customerId = !empty($customerId) ? (int) $customerId : null;
 
-        $query = Sale::with(['user', 'customer', 'details'])
+        $query = Sale::with(['user', 'customer', 'details', 'returns'])
             ->whereBetween('transaction_date', [$start, $end])
             ->where('status', 'completed');
 
@@ -73,22 +74,26 @@ class ReportService
 
         $sales = $query->latest('transaction_date')->get();
 
-        $totalSubtotal = $sales->sum('subtotal');
-        $totalDiscount = $sales->sum('discount_amount');
-        $totalTax = $sales->sum('tax_amount');
-        $totalShipping = $sales->sum('shipping_cost');
-        $totalGrandTotal = $sales->sum('grand_total');
+        $totalSubtotal = (float) $sales->sum('subtotal');
+        $totalDiscount = (float) $sales->sum('discount_amount');
+        $totalTax = (float) $sales->sum('tax_amount');
+        $totalShipping = (float) $sales->sum('shipping_cost');
+        $grossGrandTotal = (float) $sales->sum('grand_total');
+        $totalReturns = (float) $sales->sum(fn (Sale $s) => $s->total_returned);
+        $totalGrandTotal = max(0.0, $grossGrandTotal - $totalReturns);
         $totalTransactions = $sales->count();
-        $totalProductSales = $totalSubtotal - $totalDiscount;
+        $totalProductSales = max(0.0, $totalSubtotal - $totalDiscount - $totalReturns);
 
         return [
             'sales' => $sales,
             'summary' => [
                 'total_subtotal' => $totalSubtotal,
                 'total_discount' => $totalDiscount,
+                'total_returns' => $totalReturns,
                 'total_tax' => $totalTax,
                 'total_shipping' => $totalShipping,
                 'total_product_sales' => $totalProductSales,
+                'gross_grand_total' => $grossGrandTotal,
                 'total_grand_total' => $totalGrandTotal,
                 'total_transactions' => $totalTransactions,
             ],
@@ -100,7 +105,7 @@ class ReportService
      */
     public function getProfitLossReport(Carbon $start, Carbon $end): array
     {
-        $sales = Sale::with('details')
+        $sales = Sale::with(['details', 'returns.details'])
             ->whereBetween('transaction_date', [$start, $end])
             ->where('status', 'completed')
             ->get();
@@ -110,16 +115,33 @@ class ReportService
         $totalShippingCost = (float) $sales->sum('shipping_cost');
         $totalGrandTotal = (float) $sales->sum('grand_total');
 
-        // Total Product Net Revenue (Penjualan Produk Murni - tidak termasuk ongkir)
-        $totalProductRevenue = $totalSubtotal - $totalDiscounts;
+        // Total Cost of Goods Sold (HPP) & Retur Penjualan
+        $grossCogs = 0.0;
+        $totalReturns = 0.0;
+        $returnedCogs = 0.0;
 
-        // Total Cost of Goods Sold (HPP)
-        $totalCogs = 0;
         foreach ($sales as $sale) {
             foreach ($sale->details as $detail) {
-                $totalCogs += ((float) $detail->cost_price * (float) $detail->qty);
+                $grossCogs += ((float) $detail->cost_price * (float) $detail->qty);
+            }
+
+            foreach ($sale->returns as $saleReturn) {
+                if ($saleReturn->refund_method === 'none') {
+                    continue;
+                }
+                $totalReturns += (float) $saleReturn->total_refund;
+                foreach ($saleReturn->details as $retDetail) {
+                    $origDetail = $sale->details->firstWhere('product_id', $retDetail->product_id);
+                    $unitCost = (float) ($origDetail?->cost_price ?? 0);
+                    $returnedCogs += ($unitCost * (float) $retDetail->qty);
+                }
             }
         }
+
+        // Total Product Net Revenue (Penjualan Produk Bersih setelah diskon & retur)
+        $totalProductRevenue = max(0.0, $totalSubtotal - $totalDiscounts - $totalReturns);
+        $netGrandTotal = max(0.0, $totalGrandTotal - $totalReturns);
+        $totalCogs = max(0.0, $grossCogs - $returnedCogs);
 
         // Gross Profit from products = Product Revenue - HPP
         $grossProfit = $totalProductRevenue - $totalCogs;
@@ -137,9 +159,12 @@ class ReportService
             'total_revenue' => $totalProductRevenue,
             'total_product_revenue' => $totalProductRevenue,
             'total_shipping' => $totalShippingCost,
-            'total_grand_total' => $totalGrandTotal,
+            'total_grand_total' => $netGrandTotal,
             'total_subtotal' => $totalSubtotal,
             'total_discounts' => $totalDiscounts,
+            'total_returns' => $totalReturns,
+            'gross_cogs' => $grossCogs,
+            'returned_cogs' => $returnedCogs,
             'total_cogs' => $totalCogs,
             'gross_profit' => $grossProfit,
             'expenses' => $expenses,
@@ -148,26 +173,83 @@ class ReportService
     }
 
     /**
-     * Get Best Selling Products.
+     * Get Best Selling Products (Net of Returns).
      */
     public function getBestSellers(Carbon $start, Carbon $end, int $limit = 10)
     {
-        return SaleDetail::select(
+        $items = SaleDetail::select(
                 'product_id',
                 'product_name',
                 DB::raw('SUM(qty) as total_qty'),
-                DB::raw('SUM(subtotal) as total_sales'),
+                DB::raw('SUM(subtotal - discount_amount) as total_sales'),
                 DB::raw('SUM(qty * cost_price) as total_cogs'),
-                DB::raw('SUM(subtotal - (qty * cost_price)) as total_profit')
+                DB::raw('SUM((subtotal - discount_amount) - (qty * cost_price)) as total_profit')
             )
             ->whereHas('sale', function ($query) use ($start, $end) {
                 $query->whereBetween('transaction_date', [$start, $end])
                       ->where('status', 'completed');
             })
             ->groupBy('product_id', 'product_name')
-            ->orderByDesc('total_qty')
-            ->limit($limit)
             ->get();
+
+        $returnedMap = $this->getReturnedProductStatsMap($start, $end);
+
+        foreach ($items as $item) {
+            $ret = $returnedMap[$item->product_id] ?? null;
+            $item->gross_qty = (float) $item->total_qty;
+            $item->returned_qty = (float) ($ret['returned_qty'] ?? 0);
+            $item->total_qty = max(0, $item->gross_qty - $item->returned_qty);
+            $item->total_sales = max(0, (float) $item->total_sales - (float) ($ret['returned_sales'] ?? 0));
+            $item->total_cogs = max(0, (float) $item->total_cogs - (float) ($ret['returned_cogs'] ?? 0));
+            $item->total_profit = $item->total_sales - $item->total_cogs;
+        }
+
+        return $items
+            ->filter(fn ($i) => $i->total_qty > 0 || $i->gross_qty > 0)
+            ->sortByDesc('total_qty')
+            ->take($limit)
+            ->values();
+    }
+
+    /**
+     * Helper: Calculate returned qty, sales, and COGS per product_id for sales in [$start, $end].
+     */
+    private function getReturnedProductStatsMap(Carbon $start, Carbon $end): array
+    {
+        $salesWithReturns = Sale::with(['details', 'returns.details'])
+            ->where('status', 'completed')
+            ->whereBetween('transaction_date', [$start, $end])
+            ->whereHas('returns', function ($q) {
+                $q->where('refund_method', '!=', 'none');
+            })
+            ->get();
+
+        $map = [];
+        foreach ($salesWithReturns as $sale) {
+            foreach ($sale->returns as $ret) {
+                if ($ret->refund_method === 'none') {
+                    continue;
+                }
+                foreach ($ret->details as $retDetail) {
+                    $pid = $retDetail->product_id;
+                    if (!isset($map[$pid])) {
+                        $map[$pid] = [
+                            'returned_qty' => 0.0,
+                            'returned_sales' => 0.0,
+                            'returned_cogs' => 0.0,
+                        ];
+                    }
+                    $origDetail = $sale->details->firstWhere('product_id', $pid);
+                    $unitCost = (float) ($origDetail?->cost_price ?? 0);
+
+                    $map[$pid]['returned_qty'] += (float) $retDetail->qty;
+                    $map[$pid]['returned_sales'] += (float) $retDetail->subtotal;
+                    $map[$pid]['returned_cogs'] += ((float) $retDetail->qty * $unitCost);
+                }
+            }
+        }
+
+        return $map;
     }
 
     /**
@@ -258,23 +340,46 @@ class ReportService
         $products = $query->get();
 
         $productModels = Product::with(['category', 'unit'])->whereIn('id', $products->pluck('product_id')->filter())->get()->keyBy('id');
+        $returnedMap = $this->getReturnedProductStatsMap($start, $end);
 
-        $overallQty = 0;
-        $overallSales = 0;
-        $overallCogs = 0;
-        $overallProfit = 0;
+        $overallQty = 0.0;
+        $overallReturnedQty = 0.0;
+        $overallSales = 0.0;
+        $overallCogs = 0.0;
+        $overallProfit = 0.0;
 
         foreach ($products as $p) {
             $prodModel = $productModels->get($p->product_id);
+            $ret = $returnedMap[$p->product_id] ?? null;
+
+            $p->gross_qty = (float) $p->total_qty;
+            $p->returned_qty = (float) ($ret['returned_qty'] ?? 0);
+            $p->returned_sales = (float) ($ret['returned_sales'] ?? 0);
+            $p->returned_cogs = (float) ($ret['returned_cogs'] ?? 0);
+
+            $p->total_qty = max(0.0, $p->gross_qty - $p->returned_qty);
+            $p->total_sales = max(0.0, (float) $p->total_sales - $p->returned_sales);
+            $p->total_cogs = max(0.0, (float) $p->total_cogs - $p->returned_cogs);
+            $p->total_profit = $p->total_sales - $p->total_cogs;
+
             $p->sku = $prodModel?->sku ?? '-';
             $p->category_name = $prodModel?->category?->name ?? '-';
             $p->unit_name = $prodModel?->unit?->short_name ?? 'pcs';
             $p->margin_percentage = $p->total_sales > 0 ? ($p->total_profit / $p->total_sales) * 100 : 0;
 
-            $overallQty += (int) $p->total_qty;
-            $overallSales += (float) $p->total_sales;
-            $overallCogs += (float) $p->total_cogs;
-            $overallProfit += (float) $p->total_profit;
+            $overallQty += $p->total_qty;
+            $overallReturnedQty += $p->returned_qty;
+            $overallSales += $p->total_sales;
+            $overallCogs += $p->total_cogs;
+            $overallProfit += $p->total_profit;
+        }
+
+        if ($sortBy === 'sales_desc') {
+            $products = $products->sortByDesc('total_sales')->values();
+        } elseif ($sortBy === 'profit_desc') {
+            $products = $products->sortByDesc('total_profit')->values();
+        } else {
+            $products = $products->sortByDesc('total_qty')->values();
         }
 
         $overallMargin = $overallSales > 0 ? ($overallProfit / $overallSales) * 100 : 0;
@@ -284,6 +389,7 @@ class ReportService
             'summary' => [
                 'total_products_count' => $products->count(),
                 'overall_qty' => $overallQty,
+                'overall_returned_qty' => $overallReturnedQty,
                 'overall_sales' => $overallSales,
                 'overall_cogs' => $overallCogs,
                 'overall_profit' => $overallProfit,
@@ -312,9 +418,28 @@ class ReportService
             ->orderBy('date', 'desc')
             ->get();
 
+        // Hitung retur penjualan per tanggal transaksi nota asal
+        $returnsByDate = SaleReturn::select(
+                DB::raw('DATE(sales.transaction_date) as date'),
+                DB::raw('SUM(sale_returns.total_refund) as total_returns')
+            )
+            ->join('sales', 'sales.id', '=', 'sale_returns.sale_id')
+            ->where('sales.status', 'completed')
+            ->where('sale_returns.refund_method', '!=', 'none')
+            ->whereBetween('sales.transaction_date', [$start, $end])
+            ->groupBy(DB::raw('DATE(sales.transaction_date)'))
+            ->pluck('total_returns', 'date');
+
+        foreach ($salesByDate as $t) {
+            $t->gross_grand_total = (float) $t->total_grand_total;
+            $t->total_returns = (float) ($returnsByDate[$t->date] ?? 0);
+            $t->total_grand_total = max(0.0, $t->gross_grand_total - $t->total_returns);
+        }
+
         $totalTransactions = (int) $salesByDate->sum('total_transactions');
         $totalSubtotal = (float) $salesByDate->sum('total_subtotal');
         $totalDiscount = (float) $salesByDate->sum('total_discount');
+        $totalReturns = (float) $salesByDate->sum('total_returns');
         $totalTax = (float) $salesByDate->sum('total_tax');
         $totalShipping = (float) $salesByDate->sum('total_shipping');
         $totalGrandTotal = (float) $salesByDate->sum('total_grand_total');
@@ -329,9 +454,10 @@ class ReportService
                 'total_transactions' => $totalTransactions,
                 'total_subtotal' => $totalSubtotal,
                 'total_discount' => $totalDiscount,
+                'total_returns' => $totalReturns,
                 'total_tax' => $totalTax,
                 'total_shipping' => $totalShipping,
-                'total_product_sales' => $totalSubtotal - $totalDiscount,
+                'total_product_sales' => max(0.0, $totalSubtotal - $totalDiscount - $totalReturns),
                 'total_grand_total' => $totalGrandTotal,
                 'active_days' => $salesByDate->count(),
                 'avg_daily_turnover' => $avgDailyTurnover,
@@ -385,14 +511,39 @@ class ReportService
 
         $customerSales = $query->get();
 
+        // Hitung retur per customer untuk nota pada periode ini
+        $returnsByCustomerRows = SaleReturn::select(
+                'sales.customer_id',
+                DB::raw('SUM(sale_returns.total_refund) as total_returns')
+            )
+            ->join('sales', 'sales.id', '=', 'sale_returns.sale_id')
+            ->where('sales.status', 'completed')
+            ->where('sale_returns.refund_method', '!=', 'none')
+            ->whereBetween('sales.transaction_date', [$start, $end])
+            ->groupBy('sales.customer_id')
+            ->get();
+
+        $returnsByCustomer = [];
+        foreach ($returnsByCustomerRows as $rRow) {
+            $key = $rRow->customer_id ?? 'umum';
+            $returnsByCustomer[$key] = (float) $rRow->total_returns;
+        }
+
         $customerModels = \App\Models\Customer::whereIn('id', $customerSales->pluck('customer_id')->filter())->get()->keyBy('id');
 
-        $memberSpent = 0;
+        $memberSpent = 0.0;
         $memberTx = 0;
-        $generalSpent = 0;
+        $generalSpent = 0.0;
         $generalTx = 0;
+        $totalReturns = 0.0;
 
         foreach ($customerSales as $item) {
+            $retKey = $item->customer_id ?? 'umum';
+            $item->gross_spent = (float) $item->total_spent;
+            $item->total_returns = (float) ($returnsByCustomer[$retKey] ?? 0);
+            $item->total_spent = max(0.0, $item->gross_spent - $item->total_returns);
+            $totalReturns += $item->total_returns;
+
             if ($item->customer_id && $cust = $customerModels->get($item->customer_id)) {
                 $item->customer_name = $cust->name;
                 $item->customer_code = $cust->code ?? '-';
@@ -413,6 +564,10 @@ class ReportService
             $item->last_transaction_date = $item->last_transaction_date ? Carbon::parse($item->last_transaction_date) : null;
         }
 
+        if ($sortBy === 'total_desc') {
+            $customerSales = $customerSales->sortByDesc('total_spent')->values();
+        }
+
         $totalSpent = $memberSpent + $generalSpent;
         $totalTx = $memberTx + $generalTx;
 
@@ -421,6 +576,7 @@ class ReportService
             'summary' => [
                 'total_customers_count' => $customerSales->count(),
                 'total_spent' => $totalSpent,
+                'total_returns' => $totalReturns,
                 'total_transactions' => $totalTx,
                 'member_spent' => $memberSpent,
                 'member_transactions' => $memberTx,
@@ -520,9 +676,30 @@ class ReportService
 
         $cashierSales = $query->get();
 
+        // Hitung retur per kasir untuk nota pada periode ini
+        $returnsByCashier = SaleReturn::select(
+                'sales.user_id',
+                DB::raw('SUM(sale_returns.total_refund) as total_returns')
+            )
+            ->join('sales', 'sales.id', '=', 'sale_returns.sale_id')
+            ->where('sales.status', 'completed')
+            ->where('sale_returns.refund_method', '!=', 'none')
+            ->whereBetween('sales.transaction_date', [$start, $end])
+            ->groupBy('sales.user_id')
+            ->pluck('total_returns', 'user_id');
+
         $userModels = \App\Models\User::with('role')->whereIn('id', $cashierSales->pluck('user_id')->filter())->get()->keyBy('id');
 
+        foreach ($cashierSales as $item) {
+            $item->gross_grand_total = (float) $item->total_grand_total;
+            $item->total_returns = (float) ($returnsByCashier[$item->user_id] ?? 0);
+            $item->total_grand_total = max(0.0, $item->gross_grand_total - $item->total_returns);
+        }
+
+        $cashierSales = $cashierSales->sortByDesc('total_grand_total')->values();
+
         $overallTurnover = (float) $cashierSales->sum('total_grand_total');
+        $overallReturns = (float) $cashierSales->sum('total_returns');
         $overallTransactions = (int) $cashierSales->sum('total_transactions');
 
         foreach ($cashierSales as $item) {
@@ -539,6 +716,7 @@ class ReportService
             'summary' => [
                 'total_cashiers_count' => $cashierSales->count(),
                 'overall_turnover' => $overallTurnover,
+                'overall_returns' => $overallReturns,
                 'overall_transactions' => $overallTransactions,
                 'avg_store_basket_size' => $overallTransactions > 0 ? ($overallTurnover / $overallTransactions) : 0,
             ],
@@ -561,18 +739,22 @@ class ReportService
      */
     public function getIncomeReport(Carbon $start, Carbon $end): array
     {
-        $sales = Sale::with(['details', 'paymentAllocations.receivablePayment'])
+        $sales = Sale::with(['details', 'returns.details', 'paymentAllocations.receivablePayment'])
             ->where('status', 'completed')
             ->whereBetween('transaction_date', [$start, $end])
             ->orderBy('transaction_date', 'asc')
             ->get();
 
-        // Subsequent receivable payments (cicilan/pelunasan di luar DP awal saat checkout)
+        // Subsequent receivable payments (cicilan/pelunasan uang riil di luar DP awal & di luar potongan retur)
         $subsequentPayments = ReceivablePayment::query()
             ->whereBetween('payment_date', [$start, $end])
+            ->where('payment_method', '!=', 'return')
             ->where(function ($q) {
                 $q->whereNull('notes')
-                  ->orWhere('notes', 'not like', 'Uang Muka (DP)%');
+                  ->orWhere(function ($sq) {
+                      $sq->where('notes', 'not like', 'Uang Muka (DP)%')
+                         ->where('notes', 'not like', 'Potongan Retur%');
+                  });
             })
             ->orderBy('payment_date', 'asc')
             ->get();
@@ -622,32 +804,56 @@ class ReportService
                 $saleModal += ((float) $detail->qty * (float) $detail->cost_price);
             }
 
+            // Hitung potongan retur pada nota penjualan ini (kecuali tukar barang tanpa refund)
+            $returnedRevenue = 0.0;
+            $returnedModal = 0.0;
+            foreach ($sale->returns as $saleReturn) {
+                if ($saleReturn->refund_method === 'none') {
+                    continue;
+                }
+                $returnedRevenue += (float) $saleReturn->total_refund;
+                foreach ($saleReturn->details as $retDetail) {
+                    $origDetail = $sale->details->firstWhere('product_id', $retDetail->product_id);
+                    $unitCost = (float) ($origDetail?->cost_price ?? 0);
+                    $returnedModal += ($unitCost * (float) $retDetail->qty);
+                }
+            }
+
+            $netGrandTotal = max(0.0, $grandTotal - $returnedRevenue);
+            $netSaleModal = max(0.0, $saleModal - $returnedModal);
+
             $dailyMap[$dateKey]['total_transactions'] += 1;
-            $dailyMap[$dateKey]['penjualan'] += $grandTotal;
-            $dailyMap[$dateKey]['modal'] += $saleModal;
+            $dailyMap[$dateKey]['penjualan'] += $netGrandTotal;
+            $dailyMap[$dateKey]['modal'] += $netSaleModal;
 
             if ($sale->payment_method === 'debt') {
-                // Hitung cicilan lanjutan yang pernah dialokasikan ke nota ini
-                $subsequentAllocated = 0.0;
+                // Hitung alokasi pasca-checkout (cicilan lanjutan & potongan retur)
+                $postCheckoutAllocated = 0.0;
                 foreach ($sale->paymentAllocations as $alloc) {
                     $notes = (string) ($alloc->receivablePayment?->notes ?? '');
                     if (!str_starts_with($notes, 'Uang Muka (DP)')) {
-                        $subsequentAllocated += (float) $alloc->amount;
+                        $postCheckoutAllocated += (float) $alloc->amount;
                     }
                 }
 
                 // DP awal murni saat transaksi berlangsung
-                $initialDp = max(0.0, min($grandTotal, (float) $sale->paid_amount - $subsequentAllocated));
+                $initialDp = max(0.0, min($grandTotal, (float) $sale->paid_amount - $postCheckoutAllocated));
                 $initialCredit = max(0.0, $grandTotal - $initialDp);
 
-                $dailyMap[$dateKey]['credit'] += $initialCredit;
+                // Jika ada retur pada nota kasbon ini, potong nilai Credit terlebih dahulu, lalu kelebihannya potong DP
+                $creditReducedByReturn = min($initialCredit, $returnedRevenue);
+                $netInitialCredit = max(0.0, $initialCredit - $creditReducedByReturn);
+                $dpReducedByReturn = max(0.0, $returnedRevenue - $creditReducedByReturn);
+                $netInitialDp = max(0.0, $initialDp - $dpReducedByReturn);
 
-                if ($initialDp > 0) {
+                $dailyMap[$dateKey]['credit'] += $netInitialCredit;
+
+                if ($netInitialDp > 0) {
                     $dpMethod = $sale->dp_payment_method ?? 'cash';
-                    $addPaymentByMethod($dateKey, $dpMethod, $initialDp);
+                    $addPaymentByMethod($dateKey, $dpMethod, $netInitialDp);
                 }
             } else {
-                $addPaymentByMethod($dateKey, $sale->payment_method ?? 'cash', $grandTotal);
+                $addPaymentByMethod($dateKey, $sale->payment_method ?? 'cash', $netGrandTotal);
             }
         }
 

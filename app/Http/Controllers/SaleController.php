@@ -11,7 +11,7 @@ class SaleController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Sale::with(['user', 'customer'])->latest('transaction_date');
+        $query = Sale::with(['user', 'customer', 'returns'])->latest('transaction_date');
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
@@ -46,7 +46,7 @@ class SaleController extends Controller
 
     public function printReceipt(Sale $sale)
     {
-        $sale->load(['user', 'customer', 'details']);
+        $sale->load(['user', 'customer', 'details', 'returns.details']);
 
         $settings = [
             'store_name' => Setting::get('store_name', 'Kasir POS'),
@@ -60,7 +60,7 @@ class SaleController extends Controller
 
     public function downloadPdf(Sale $sale)
     {
-        $sale->load(['user', 'customer', 'details.product.unit']);
+        $sale->load(['user', 'customer', 'details.product.unit', 'returns.details']);
 
         $settings = [
             'store_name' => Setting::get('store_name', 'Kasir POS'),

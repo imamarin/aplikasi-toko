@@ -39,11 +39,15 @@
                                 </a>
                             </td>
                             <td>
-                                <a href="{{ route('purchases.show', $ret->purchase_id) }}" class="font-monospace text-secondary text-decoration-none">
-                                    {{ $ret->purchase?->purchase_number }}
-                                </a>
+                                @if($ret->purchase_id)
+                                    <a href="{{ route('purchases.show', $ret->purchase_id) }}" class="font-monospace text-secondary text-decoration-none">
+                                        {{ $ret->purchase?->purchase_number ?? '#' . $ret->purchase_id }}
+                                    </a>
+                                @else
+                                    -
+                                @endif
                             </td>
-                            <td>{{ $ret->return_date->format('d/m/Y') }}</td>
+                            <td>{{ $ret->return_date?->format('d/m/Y') ?? $ret->created_at?->format('d/m/Y') ?? '-' }}</td>
                             <td>{{ $ret->supplier?->name ?? '-' }}</td>
                             <td class="text-end fw-bold text-dark">
                                 Rp {{ number_format($ret->total_amount, 0, ',', '.') }}

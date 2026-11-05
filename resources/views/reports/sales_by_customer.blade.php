@@ -263,12 +263,13 @@
                 <thead class="table-light small">
                     <tr>
                         <th style="width: 5%;" class="text-center">#</th>
-                        <th style="width: 25%;">Nama Pelanggan</th>
-                        <th style="width: 15%;">Kontak / HP</th>
-                        <th style="width: 12%;" class="text-center">Tipe Member</th>
-                        <th style="width: 13%;" class="text-center">Frekuensi Belanja</th>
-                        <th style="width: 15%;" class="text-end">Total Belanja (Omset)</th>
-                        <th style="width: 15%;" class="text-end">Rata-rata / Belanja</th>
+                        <th style="width: 22%;">Nama Pelanggan</th>
+                        <th style="width: 14%;">Kontak / HP</th>
+                        <th style="width: 10%;" class="text-center">Tipe Member</th>
+                        <th style="width: 11%;" class="text-center">Frekuensi</th>
+                        <th style="width: 12%;" class="text-end">Retur (-)</th>
+                        <th style="width: 14%;" class="text-end">Total Belanja Bersih</th>
+                        <th style="width: 12%;" class="text-end">Rata-rata / Nota</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -290,12 +291,13 @@
                                 @endif
                             </td>
                             <td class="text-center fw-semibold">{{ $c->total_transactions }} Kali</td>
+                            <td class="text-end text-danger">{{ ($c->total_returns ?? 0) > 0 ? '-Rp ' . number_format($c->total_returns, 0, ',', '.') : '-' }}</td>
                             <td class="text-end fw-bold text-dark">Rp {{ number_format($c->total_spent, 0, ',', '.') }}</td>
                             <td class="text-end text-muted">Rp {{ number_format($c->avg_per_transaction, 0, ',', '.') }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">Belum ada riwayat transaksi pelanggan pada rentang periode ini.</td>
+                            <td colspan="8" class="text-center py-5 text-muted">Belum ada riwayat transaksi pelanggan pada rentang periode ini.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -303,6 +305,7 @@
                     <tr>
                         <td colspan="4" class="text-end">TOTAL KESELURUHAN OMSET PELANGGAN:</td>
                         <td class="text-center">{{ number_format($summary['total_transactions'], 0, ',', '.') }} Transaksi</td>
+                        <td class="text-end text-danger">-Rp {{ number_format($summary['total_returns'] ?? 0, 0, ',', '.') }}</td>
                         <td class="text-end text-primary">Rp {{ number_format($summary['total_spent'], 0, ',', '.') }}</td>
                         <td class="text-end">-</td>
                     </tr>

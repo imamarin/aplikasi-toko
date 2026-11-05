@@ -23,13 +23,17 @@
         <div class="row g-3">
             <div class="col-md-3">
                 <small class="text-muted d-block">Tanggal Retur</small>
-                <div class="fw-bold">{{ $purchaseReturn->return_date->format('d/m/Y') }}</div>
+                <div class="fw-bold">{{ $purchaseReturn->return_date?->format('d/m/Y') ?? $purchaseReturn->created_at?->format('d/m/Y') ?? '-' }}</div>
             </div>
             <div class="col-md-3">
                 <small class="text-muted d-block">No. Faktur PO Asal</small>
-                <a href="{{ route('purchases.show', $purchaseReturn->purchase_id) }}" class="fw-bold font-monospace text-decoration-none">
-                    {{ $purchaseReturn->purchase?->purchase_number }}
-                </a>
+                @if($purchaseReturn->purchase_id)
+                    <a href="{{ route('purchases.show', $purchaseReturn->purchase_id) }}" class="fw-bold font-monospace text-decoration-none">
+                        {{ $purchaseReturn->purchase?->purchase_number ?? '#' . $purchaseReturn->purchase_id }}
+                    </a>
+                @else
+                    <span class="text-muted">-</span>
+                @endif
             </div>
             <div class="col-md-3">
                 <small class="text-muted d-block">Supplier Tujuan</small>

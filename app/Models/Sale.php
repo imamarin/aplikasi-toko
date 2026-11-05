@@ -92,4 +92,28 @@ class Sale extends Model
     {
         return max(0, (float) $this->grand_total - (float) $this->paid_amount);
     }
+
+    /**
+     * Total nominal barang yang diretur pada nota ini (di luar tukar barang tanpa refund).
+     */
+    public function getTotalReturnedAttribute(): float
+    {
+        if ($this->relationLoaded('returns')) {
+            return (float) $this->returns
+                ->where('refund_method', '!=', 'none')
+                ->sum('total_refund');
+        }
+
+        return (float) $this->returns()
+            ->where('refund_method', '!=', 'none')
+            ->sum('total_refund');
+    }
+
+    /**
+     * Grand Total Bersih setelah dikurangi retur penjualan.
+     */
+    public function getNetGrandTotalAttribute(): float
+    {
+        return max(0.0, (float) $this->grand_total - $this->total_returned);
+    }
 }

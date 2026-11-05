@@ -95,6 +95,12 @@
                         <td class="ps-4 text-muted">Potongan Diskon Penjualan (-)</td>
                         <td class="text-end text-danger">- Rp {{ number_format($profitLoss['total_discounts'], 0, ',', '.') }}</td>
                     </tr>
+                    @if(($profitLoss['total_returns'] ?? 0) > 0)
+                    <tr>
+                        <td class="ps-4 text-muted">Potongan Retur Penjualan (-)</td>
+                        <td class="text-end text-danger">- Rp {{ number_format($profitLoss['total_returns'], 0, ',', '.') }}</td>
+                    </tr>
+                    @endif
                     <tr class="fw-bold">
                         <td class="ps-4">Total Pendapatan Bersih Penjualan Produk</td>
                         <td class="text-end text-dark">Rp {{ number_format($profitLoss['total_revenue'], 0, ',', '.') }}</td>

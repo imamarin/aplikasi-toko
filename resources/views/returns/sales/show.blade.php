@@ -23,13 +23,17 @@
         <div class="row g-3">
             <div class="col-md-3">
                 <small class="text-muted d-block">Tanggal Retur</small>
-                <div class="fw-bold">{{ $saleReturn->return_date->format('d/m/Y H:i') }}</div>
+                <div class="fw-bold">{{ $saleReturn->return_date?->format('d/m/Y H:i') ?? $saleReturn->created_at?->format('d/m/Y H:i') ?? '-' }}</div>
             </div>
             <div class="col-md-3">
                 <small class="text-muted d-block">Nota Penjualan Asal</small>
-                <a href="{{ route('sales.show', $saleReturn->sale_id) }}" class="fw-bold font-monospace text-decoration-none">
-                    {{ $saleReturn->sale?->invoice_number }}
-                </a>
+                @if($saleReturn->sale_id)
+                    <a href="{{ route('sales.show', $saleReturn->sale_id) }}" class="fw-bold font-monospace text-decoration-none">
+                        {{ $saleReturn->sale?->invoice_number ?? '#' . $saleReturn->sale_id }}
+                    </a>
+                @else
+                    <span class="text-muted">-</span>
+                @endif
             </div>
             <div class="col-md-3">
                 <small class="text-muted d-block">Pelanggan</small>

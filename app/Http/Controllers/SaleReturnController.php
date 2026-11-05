@@ -42,12 +42,25 @@ class SaleReturnController extends Controller
             'refund_method' => ['required', 'string', 'in:cash,credit,none'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
-            'items.*.qty' => ['required', 'integer', 'min:1'],
+            'items.*.qty' => ['nullable', 'numeric', 'min:0'],
             'items.*.reason' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
         ], [
             'items.required' => 'Pilih minimal satu barang yang diretur.',
+            'items.*.qty.min' => 'Jumlah retur tidak boleh bernilai negatif.',
         ]);
+
+        // Ambil hanya item yang memiliki Qty Retur > 0
+        $validated['items'] = collect($validated['items'])
+            ->filter(fn ($item) => (float) ($item['qty'] ?? 0) > 0)
+            ->values()
+            ->all();
+
+        if (empty($validated['items'])) {
+            return back()
+                ->withInput()
+                ->with('error', 'Pilih minimal satu barang dengan jumlah (Qty Retur) lebih dari 0.');
+        }
 
         try {
             $saleReturn = $this->returnService->processSaleReturn($validated, Auth::id());
